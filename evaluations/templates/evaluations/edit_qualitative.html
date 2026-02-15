@@ -2,42 +2,66 @@
 {% block title %}Cualitativo · {{ employee }} · TalentMap{% endblock %}
 {% block content %}
 <div class="container py-4">
-  <div class="mb-4">
-    <h4 class="mb-1">Cualitativo</h4>
-    <div class="text-muted">{{ employee }} · {{ cycle.name }}</div>
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h3 class="mb-1">Metas cualitativas</h3>
+      <p class="text-muted mb-0">{{ employee }} · {{ cycle.name }}</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'nine_box' cycle.id %}">Volver al mapa</a>
   </div>
 
-  <form method="post" class="card p-4">
-    {% csrf_token %}
-    {{ formset.management_form }}
+  <div class="card p-4">
+    <p class="text-muted small mb-4">Los pesos deben sumar exactamente 100%.</p>
 
-    <div class="row fw-semibold text-muted mb-2 small">
-      <div class="col-3">Título</div>
-      <div class="col-3">Descripción</div>
-      <div class="col-2">Peso %</div>
-      <div class="col-2">Completado %</div>
-      <div class="col-2">Borrar</div>
-    </div>
+    <form method="post" id="qual-form">
+      {% csrf_token %}
+      {{ formset.management_form }}
 
-    {% for f in formset %}
-      <div class="row align-items-center mb-2">
-        <div class="col-3">{{ f.title }}</div>
-        <div class="col-3">{{ f.description }}</div>
-        <div class="col-2">{{ f.weight_percent }}</div>
-        <div class="col-2">{{ f.completion_percent }}</div>
-        <div class="col-2">{{ f.DELETE }}</div>
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="min-width: 180px;">Título</th>
+              <th style="min-width: 200px;">Descripción</th>
+              <th style="width: 100px;">Peso %</th>
+              <th style="width: 120px;">Completado %</th>
+              <th style="width: 90px;" class="text-center">Borrar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in formset %}
+              <tr class="{% if forloop.last and not f.instance.pk %}table-light goal-add-row{% endif %}">
+                <td class="align-middle">{{ f.title }}{% if f.title.errors %}<div class="text-danger small mt-1">{{ f.title.errors }}</div>{% endif %}</td>
+                <td class="align-middle">{{ f.description }}{% if f.description.errors %}<div class="text-danger small mt-1">{{ f.description.errors }}</div>{% endif %}</td>
+                <td class="align-middle">{{ f.weight_percent }}{% if f.weight_percent.errors %}<div class="text-danger small mt-1">{{ f.weight_percent.errors }}</div>{% endif %}</td>
+                <td class="align-middle">{{ f.completion_percent }}{% if f.completion_percent.errors %}<div class="text-danger small mt-1">{{ f.completion_percent.errors }}</div>{% endif %}</td>
+                <td class="align-middle text-center">
+                  {% if f.instance.pk %}
+                    <div class="form-check form-switch d-inline-block">
+                      {{ f.DELETE }}
+                      <label class="form-check-label text-muted small" for="{{ f.DELETE.id_for_label }}">Eliminar</label>
+                    </div>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                  {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-      {% if f.non_field_errors %}<div class="text-danger small">{{ f.non_field_errors }}</div>{% endif %}
-    {% endfor %}
 
-    {% if formset.non_form_errors %}
-      <div class="alert alert-danger mt-2">{{ formset.non_form_errors }}</div>
-    {% endif %}
+      {% if formset.non_form_errors %}
+        <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
+      {% endif %}
 
-    <div class="d-flex gap-2 mt-4">
-      <button type="submit" class="btn btn-primary">Guardar</button>
-      <a class="btn btn-outline-secondary" href="{% url 'nine_box' cycle.id %}">Volver al mapa</a>
-    </div>
-  </form>
+      <p class="text-muted small mt-2 mb-0">La última fila permite añadir una nueva meta (deja en blanco si no quieres añadir).</p>
+      <div class="d-flex gap-2 mt-4 pt-3 border-top">
+        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        <a class="btn btn-outline-secondary" href="{% url 'nine_box' cycle.id %}">Cancelar</a>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}

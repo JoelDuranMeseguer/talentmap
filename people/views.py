@@ -7,8 +7,8 @@ from django.core.mail import send_mail
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import Invitation, Employee, Department
-from .forms import InviteForm, RegisterForm
+from .models import Invitation, Employee, Department, Role
+from .forms import InviteForm, RegisterForm, DepartmentForm, RoleForm
 from .services.access import is_hr
 
 
@@ -37,10 +37,12 @@ def invite_user(request):
             if pending.exists():
                 messages.error(request, f"Ya existe una invitación pendiente para {email}.")
             else:
+                manager = form.cleaned_data.get("manager")
                 inv = Invitation.objects.create(
                     email=email,
                     department=department,
                     role=role,
+                    manager=manager,
                     created_by=request.user,
                     expires_at=timezone.now() + timedelta(days=7),
                 )
@@ -79,7 +81,7 @@ def register_with_token(request):
     if not token_str:
         return render(request, "people/register_invalid.html", {"reason": "missing_token"})
 
-    inv = Invitation.objects.filter(token=token_str).select_related("department", "role").first()
+    inv = Invitation.objects.filter(token=token_str).select_related("department", "role", "manager").first()
     if not inv:
         return render(request, "people/register_invalid.html", {"reason": "invalid_token"})
     if not inv.is_valid:
@@ -92,7 +94,12 @@ def register_with_token(request):
             user.email = inv.email
             user.save()
 
-            Employee.objects.create(user=user, department=inv.department, role=inv.role)
+            Employee.objects.create(
+                user=user,
+                department=inv.department,
+                role=inv.role,
+                manager=inv.manager,
+            )
 
             inv.used_at = timezone.now()
             inv.accepted_user = user
@@ -105,3 +112,37 @@ def register_with_token(request):
         form = RegisterForm(initial={"email": inv.email})
 
     return render(request, "registration/register.html", {"form": form, "invitation": inv})
+
+
+@login_required
+def config(request):
+    """Admin-only: create departments and roles."""
+    if not is_hr(request.user):
+        return render(request, "evaluations/forbidden.html", status=403)
+
+    dept_form = DepartmentForm()
+    role_form = RoleForm()
+
+    if request.method == "POST":
+        if "add_department" in request.POST:
+            dept_form = DepartmentForm(request.POST)
+            if dept_form.is_valid():
+                dept_form.save()
+                messages.success(request, f"Departamento «{dept_form.instance.name}» creado.")
+                return redirect("config")
+        elif "add_role" in request.POST:
+            role_form = RoleForm(request.POST)
+            if role_form.is_valid():
+                role_form.save()
+                messages.success(request, f"Rol «{role_form.instance.name}» creado.")
+                return redirect("config")
+
+    departments = Department.objects.all().order_by("name")
+    roles = Role.objects.select_related("department").order_by("department__name", "name")
+
+    return render(request, "people/config.html", {
+        "dept_form": dept_form,
+        "role_form": role_form,
+        "departments": departments,
+        "roles": roles,
+    })

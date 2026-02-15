@@ -20,6 +20,7 @@
           {% if user.is_authenticated %}
             {% if is_hr %}
               <a class="btn btn-outline-primary btn-sm" href="{% url 'invite_user' %}">Invitar</a>
+              <a class="btn btn-outline-primary btn-sm" href="{% url 'config' %}">Config</a>
             {% endif %}
             <span class="text-muted small">{{ user.get_full_name|default:user.username }}</span>
             <a class="btn btn-outline-secondary btn-sm" href="{% url 'logout' %}">Salir</a>

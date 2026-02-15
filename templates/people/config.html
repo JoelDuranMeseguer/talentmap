@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Configuración · TalentMap{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">Configuración</h3>
+    <a class="btn btn-outline-secondary" href="{% url 'home' %}">Volver</a>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-6">
+      <div class="card p-4 mb-4">
+        <h5 class="mb-3">Nuevo departamento</h5>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="add_department" value="1">
+          <div class="mb-3">
+            {{ dept_form.name }}
+            {% if dept_form.name.errors %}<div class="text-danger small">{{ dept_form.name.errors }}</div>{% endif %}
+          </div>
+          <button type="submit" class="btn btn-primary">Crear departamento</button>
+        </form>
+      </div>
+      <div class="card p-4">
+        <h5 class="mb-3">Departamentos existentes</h5>
+        {% if departments %}
+          <ul class="list-group list-group-flush">
+            {% for d in departments %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">{{ d.name }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">No hay departamentos.</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card p-4 mb-4">
+        <h5 class="mb-3">Nuevo rol</h5>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="add_role" value="1">
+          <div class="mb-3">
+            <label class="form-label">Departamento</label>
+            {{ role_form.department }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nombre del rol</label>
+            {{ role_form.name }}
+            {% if role_form.name.errors %}<div class="text-danger small">{{ role_form.name.errors }}</div>{% endif %}
+          </div>
+          <button type="submit" class="btn btn-primary">Crear rol</button>
+        </form>
+      </div>
+      <div class="card p-4">
+        <h5 class="mb-3">Roles existentes</h5>
+        {% if roles %}
+          <ul class="list-group list-group-flush">
+            {% for r in roles %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ r.name }}
+                <span class="badge bg-secondary">{{ r.department.name }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">No hay roles.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

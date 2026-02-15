@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
-from .models import Invitation, Department, Role
+from .models import Invitation, Department, Role, Employee
 
 
 class InviteForm(forms.Form):
@@ -20,6 +20,13 @@ class InviteForm(forms.Form):
         queryset=Role.objects.none(),
         label="Rol",
         empty_label="Selecciona departamento primero",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    manager = forms.ModelChoiceField(
+        queryset=Employee.objects.filter(active=True).select_related("user").order_by("user__last_name"),
+        label="Superior/Jefe (opcional)",
+        required=False,
+        empty_label="Sin superior",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
 
@@ -53,3 +60,20 @@ class RegisterForm(UserCreationForm):
                 widget = self.fields[field].widget
                 if "class" not in widget.attrs:
                     widget.attrs["class"] = "form-control"
+
+
+class DepartmentForm(forms.ModelForm):
+    class Meta:
+        model = Department
+        fields = ["name"]
+        widgets = {"name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Nombre del departamento"})}
+
+
+class RoleForm(forms.ModelForm):
+    class Meta:
+        model = Role
+        fields = ["name", "department"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Nombre del rol"}),
+            "department": forms.Select(attrs={"class": "form-select"}),
+        }

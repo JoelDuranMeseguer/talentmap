@@ -69,6 +69,7 @@ def cycle_home(request, cycle_id):
 
     is_manager = managed_employees_qs(request.user).exists()
     hr = is_hr(request.user)
+    can_edit_me = hr or (me.manager_id and me.manager.user_id == request.user.id)
 
     return render(request, "evaluations/cycle_home.html", {
         "cycle": cycle,
@@ -76,6 +77,7 @@ def cycle_home(request, cycle_id):
         "my_score": my_score,
         "is_manager": is_manager,
         "is_hr": hr,
+        "can_edit_me": can_edit_me,
     })
 
 

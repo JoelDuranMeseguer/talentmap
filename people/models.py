@@ -38,6 +38,13 @@ class Invitation(models.Model):
     token = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True, editable=False)
     department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="invitations")
     role = models.ForeignKey(Role, on_delete=models.PROTECT, related_name="invitations")
+    manager = models.ForeignKey(
+        "Employee",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invited_reports",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sent_invitations"
     )

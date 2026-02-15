@@ -25,10 +25,14 @@
         {% else %}
           <div class="text-muted">Aún no hay score calculado para ti en este ciclo.</div>
         {% endif %}
-        <div class="d-flex gap-2 mt-3">
-          <a class="btn btn-primary" href="{% url 'edit_qualitative' cycle.id me.id %}">Editar cualitativo</a>
-          <a class="btn btn-outline-primary" href="{% url 'competency_picker' cycle.id me.id %}">Editar cuantitativo</a>
-        </div>
+        {% if can_edit_me %}
+          <div class="d-flex gap-2 mt-3">
+            <a class="btn btn-primary" href="{% url 'edit_qualitative' cycle.id me.id %}">Editar cualitativo</a>
+            <a class="btn btn-outline-primary" href="{% url 'competency_picker' cycle.id me.id %}">Editar cuantitativo</a>
+          </div>
+        {% else %}
+          <p class="text-muted small mt-2 mb-0">Solo tu superior o administrador pueden editar tu evaluación.</p>
+        {% endif %}
       </div>
     </div>
 

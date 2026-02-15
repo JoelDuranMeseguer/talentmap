@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Invitar usuarios · TalentMap{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">Invitar usuarios</h3>
+    <a class="btn btn-outline-secondary" href="{% url 'home' %}">Volver</a>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-5">
+      <div class="card p-4">
+        <h5 class="mb-3">Nueva invitación</h5>
+        <form method="post" id="invite-form">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label" for="id_email">Correo electrónico</label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="id_department">Departamento</label>
+            {{ form.department }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="id_role">Rol</label>
+            {{ form.role }}
+          </div>
+          <button type="submit" class="btn btn-primary">Enviar invitación</button>
+        </form>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card p-4">
+        <h5 class="mb-3">Invitaciones pendientes</h5>
+        {% if pending_invites %}
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Departamento</th>
+                  <th>Rol</th>
+                  <th>Enviada</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for inv in pending_invites %}
+                  <tr>
+                    <td>{{ inv.email }}</td>
+                    <td>{{ inv.department.name }}</td>
+                    <td>{{ inv.role.name }}</td>
+                    <td>{{ inv.created_at|date:"d/m/Y" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">No hay invitaciones pendientes.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.getElementById('id_department').addEventListener('change', function() {
+    var deptId = this.value;
+    if (deptId) {
+      window.location.href = '{% url "invite_user" %}?department=' + deptId;
+    }
+  });
+</script>
+{% endblock %}

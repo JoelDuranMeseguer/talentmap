@@ -1,0 +1,74 @@
+:root {
+  --tm-primary: #2563eb;
+  --tm-primary-hover: #1d4ed8;
+  --tm-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --tm-card-radius: 12px;
+  --tm-header-bg: #fff;
+  --tm-border: #e5e7eb;
+}
+
+* {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.talentmap-body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+}
+
+.talentmap-header {
+  background: var(--tm-header-bg);
+  border-bottom: 1px solid var(--tm-border);
+  box-shadow: var(--tm-card-shadow);
+}
+
+.talentmap-brand {
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--tm-primary);
+  text-decoration: none;
+}
+
+.talentmap-brand:hover {
+  color: var(--tm-primary-hover);
+}
+
+.talentmap-main {
+  flex: 1;
+  padding: 2rem 0;
+}
+
+.talentmap-footer {
+  background: var(--tm-header-bg);
+  border-top: 1px solid var(--tm-border);
+}
+
+/* Cards */
+.talentmap-body .card {
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-card-radius);
+  box-shadow: var(--tm-card-shadow);
+  background: #fff;
+}
+
+.talentmap-body .btn-primary {
+  background-color: var(--tm-primary);
+  border-color: var(--tm-primary);
+}
+
+.talentmap-body .btn-primary:hover {
+  background-color: var(--tm-primary-hover);
+  border-color: var(--tm-primary-hover);
+}
+
+/* Auth pages (login, logout, register) - centered layout */
+.talentmap-auth-container {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.talentmap-auth-card {
+  padding: 2rem;
+}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Cerrar sesión · TalentMap{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="talentmap-auth-container">
+    <div class="card talentmap-auth-card">
+      <h3 class="mb-3">Cerrar sesión</h3>
+      <p class="text-muted mb-4">¿Estás seguro de que quieres cerrar sesión?</p>
+      <form method="post" class="d-flex gap-2">
+        {% csrf_token %}
+        <button type="submit" name="confirm" value="1" class="btn btn-primary">Sí, salir</button>
+        <a href="{% url 'home' %}" class="btn btn-outline-secondary">Cancelar</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

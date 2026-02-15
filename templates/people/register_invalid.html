@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Invitación inválida · TalentMap{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="talentmap-auth-container">
+    <div class="card talentmap-auth-card text-center">
+      <h3 class="mb-3">Invitación inválida</h3>
+      {% if reason == "missing_token" %}
+        <p class="text-muted">No se ha proporcionado un enlace de invitación válido.</p>
+      {% elif reason == "invalid_token" %}
+        <p class="text-muted">El enlace de invitación no es válido.</p>
+      {% elif reason == "expired_or_used" %}
+        <p class="text-muted">Esta invitación ha expirado o ya ha sido utilizada.</p>
+      {% else %}
+        <p class="text-muted">No se puede completar el registro.</p>
+      {% endif %}
+      <a href="{% url 'login' %}" class="btn btn-primary">Ir a inicio de sesión</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

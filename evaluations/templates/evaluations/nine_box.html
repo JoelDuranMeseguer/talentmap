@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Mapa de Talento - {{ cycle.name }}</title>
+  <style>
+    .cell { min-height: 220px; border: 1px solid #e6e6e6; border-radius: 14px; padding: 12px; background: #fff; }
+    .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .emp { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 8px; border-radius:10px; background:#f8f9fa; margin-bottom:8px; }
+    .muted { color:#6c757d; font-size: 12px; }
+    .title { font-weight: 600; font-size: 13px; }
+  </style>
+</head>
+<body class="bg-light">
+<div class="container py-4">
+  <div class="d-flex align-items-end justify-content-between flex-wrap gap-2">
+    <div>
+      <h3 class="mb-0">Mapa de Talento</h3>
+      <div class="muted">{{ cycle.name }} · Y: Cualitativo · X: Cuantitativo</div>
+      <div class="muted">Arriba = mejor cualitativo · Derecha = mejor cuantitativo</div>
+    </div>
+
+    <form class="d-flex gap-2">
+      <select class="form-select" name="department" style="min-width:220px;">
+        <option value="">Todos los departamentos</option>
+        {% for d in departments %}
+          <option value="{{ d.id }}" {% if dept_id == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+
+      <select class="form-select" name="role" style="min-width:220px;">
+        <option value="">Todos los roles</option>
+        {% for r in roles %}
+          <option value="{{ r.id }}" {% if role_id == r.id|stringformat:"s" %}selected{% endif %}>{{ r.name }}</option>
+        {% endfor %}
+      </select>
+
+      <button class="btn btn-primary">Filtrar</button>
+    </form>
+  </div>
+
+  <hr/>
+
+  <div class="grid">
+    {% for c in cells %}
+      <div class="cell">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="title">{{ c.label }} <span class="muted">· Y={{ c.qual }} X={{ c.quant }}</span></div>
+          <div class="muted">{{ c.items|length }} empleados</div>
+        </div>
+
+        {% if c.items %}
+          {% for s in c.items %}
+            <div class="emp">
+              <div>
+                <div>{{ s.employee }}</div>
+                <div class="muted">{{ s.employee.role.name }} · {{ s.employee.department.name }}</div>
+              </div>
+              <div class="text-end">
+                <div class="muted">Qlt {{ s.qualitative_score }} · Qnt {{ s.quantitative_score }}</div>
+                <span class="badge text-bg-secondary">{{ s.box_label }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="muted">Sin empleados en este sector.</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+</body>
+</html>

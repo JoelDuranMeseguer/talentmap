@@ -42,9 +42,16 @@
                 {% endif %}
               </td>
               <td>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 align-items-center flex-wrap">
                   <a class="btn btn-sm btn-primary" href="{% url 'edit_qualitative' e.id %}">Cualitativo</a>
                   <a class="btn btn-sm btn-outline-primary" href="{% url 'competency_picker' e.id %}">Cuantitativo</a>
+                  {% if is_hr %}
+                  <form method="post" action="{% url 'delete_employee' e.id %}" class="m-0 d-inline" onsubmit="return confirm('¿Desactivar a {{ e }}? No podrá acceder al sistema.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'team_overview' %}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                  </form>
+                  {% endif %}
                 </div>
               </td>
             </tr>

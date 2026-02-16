@@ -37,7 +37,7 @@
     <div class="col-lg-6">
       <div class="card p-4 mb-4">
         <h5 class="mb-3">Nuevo rol</h5>
-        <form method="post">
+        <form id="add-role-form" method="post">
           {% csrf_token %}
           <input type="hidden" name="add_role" value="1">
           <div class="mb-3">
@@ -47,27 +47,64 @@
           <div class="mb-3">
             <label class="form-label">Nombre del rol</label>
             {{ role_form.name }}
-            {% if role_form.name.errors %}<div class="text-danger small">{{ role_form.name.errors }}</div>{% endif %}
+            <div id="role-form-errors" class="text-danger small"></div>
           </div>
           <button type="submit" class="btn btn-primary">Crear rol</button>
         </form>
       </div>
       <div class="card p-4">
         <h5 class="mb-3">Roles existentes</h5>
-        {% if roles %}
-          <ul class="list-group list-group-flush">
-            {% for r in roles %}
-              <li class="list-group-item d-flex justify-content-between align-items-center">
-                {{ r.name }}
-                <span class="badge bg-secondary">{{ r.department.name }}</span>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="text-muted mb-0">No hay roles.</p>
+        <ul id="roles-list" class="list-group list-group-flush">
+          {% for r in roles %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              {{ r.name }}
+              <span class="badge bg-secondary">{{ r.department.name }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+        {% if not roles %}
+          <p id="roles-empty" class="text-muted mb-0">No hay roles.</p>
         {% endif %}
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('add-role-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var form = this;
+  var errEl = document.getElementById('role-form-errors');
+  errEl.textContent = '';
+  var fd = new FormData(form);
+  fetch('{% url "api_add_role" %}', {
+    method: 'POST',
+    body: fd,
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value
+    }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      var emptyEl = document.getElementById('roles-empty');
+      if (emptyEl) emptyEl.style.display = 'none';
+      var li = document.createElement('li');
+      li.className = 'list-group-item d-flex justify-content-between align-items-center';
+      li.innerHTML = data.name + ' <span class="badge bg-secondary">' + data.department + '</span>';
+      document.getElementById('roles-list').appendChild(li);
+      form.querySelector('[name=name]').value = '';
+    } else {
+      var errs = typeof data.error === 'string' ? data.error : JSON.parse(data.error);
+      var msgs = [];
+      for (var k in errs) msgs.push(k + ': ' + (Array.isArray(errs[k]) ? errs[k].join(', ') : errs[k]));
+      errEl.textContent = msgs.join('; ');
+    }
+  })
+  .catch(function() { errEl.textContent = 'Error al crear el rol.'; });
+});
+</script>
 {% endblock %}

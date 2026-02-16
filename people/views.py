@@ -13,7 +13,7 @@ from .services.access import is_hr
 from .excel_import import build_sample_excel, parse_excel_import
 from django.views.decorators.http import require_POST
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.models import User
 
 
@@ -51,6 +51,47 @@ def logout_confirm(request):
 
 
 @login_required
+def api_roles_by_department(request, department_id):
+    """JSON: roles for a department (for AJAX dropdowns)."""
+    roles = list(
+        Role.objects.filter(department_id=department_id).order_by("name").values("id", "name")
+    )
+    return JsonResponse({"roles": roles})
+
+
+@require_POST
+@login_required
+def delete_employee(request, employee_id):
+    """Soft-delete employee (HR only). Sets active=False."""
+    if not is_hr(request.user):
+        return render(request, "evaluations/forbidden.html", status=403)
+    emp = get_object_or_404(Employee, id=employee_id)
+    name = str(emp)
+    emp.active = False
+    emp.save()
+    if emp.user:
+        emp.user.is_active = False
+        emp.user.save()
+    messages.success(request, f"Usuario «{name}» desactivado correctamente.")
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "invite_user"
+    return redirect(next_url)
+
+
+@login_required
+def api_add_role(request):
+    """AJAX: add role and return JSON (no page reload)."""
+    if not is_hr(request.user):
+        return JsonResponse({"ok": False, "error": "Forbidden"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "POST required"}, status=405)
+    form = RoleForm(request.POST)
+    if form.is_valid():
+        r = form.save()
+        return JsonResponse({"ok": True, "id": r.id, "name": r.name, "department": r.department.name})
+    return JsonResponse({"ok": False, "error": form.errors.as_json()}, status=400)
+
+
+@login_required
 def download_sample_excel(request):
     """Download Excel sample: template sheet + current users sheet."""
     if not is_hr(request.user):
@@ -76,14 +117,38 @@ def import_users_excel(request):
             messages.error(request, e)
         return redirect("invite_user")
 
+    batch_by_name = {}
+    emp_by_email = {e.user.email.lower(): e for e in Employee.objects.filter(active=True) if e.user.email}
+
+    def resolve_manager(r):
+        if r.get("manager"):
+            return r["manager"]
+        mn, ma = r.get("manager_nombre", "").strip(), r.get("manager_apellido", "").strip()
+        if mn and ma:
+            return batch_by_name.get((mn, ma))
+        return None
+
+    rows_internals = [r for r in rows if not r.get("email")]
+    rows_with_email = [r for r in rows if r.get("email")]
+
     created = 0
-    for r in rows:
+    for r in rows_internals:
+        first_name = r["first_name"]
+        last_name = r["last_name"]
+        dept = r["department"]
+        role = r["role"]
+        manager = resolve_manager(r)
+        emp = _create_internal_employee(first_name, last_name, dept, role, manager, request.user)
+        batch_by_name[(first_name, last_name)] = emp
+        created += 1
+
+    for r in rows_with_email:
         first_name = r["first_name"]
         last_name = r["last_name"]
         email = r["email"]
         dept = r["department"]
         role = r["role"]
-        manager = r["manager"]
+        manager = resolve_manager(r) or r.get("manager")
 
         if email:
             if User.objects.filter(email__iexact=email).exists() or Invitation.objects.filter(email__iexact=email, used_at__isnull=True, expires_at__gt=timezone.now()).exists():
@@ -106,9 +171,6 @@ def import_users_excel(request):
                 recipient_list=[email],
                 fail_silently=False,
             )
-            created += 1
-        else:
-            _create_internal_employee(first_name, last_name, dept, role, manager, request.user)
             created += 1
 
     messages.success(request, f"Importados {created} usuarios.")

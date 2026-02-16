@@ -282,12 +282,15 @@ def nine_box_dashboard(request):
 
     editable_ids = set(managed_employees_qs(request.user).values_list("id", flat=True))
 
+    roles_qs = Role.objects.filter(department_id=dept_id).order_by("name") if dept_id else Role.objects.none()
+
     return render(request, "evaluations/nine_box.html", {
         "cycle": cycle,
         "cells": cells,
         "departments": Department.objects.all(),
-        "roles": Role.objects.all(),
+        "roles": roles_qs,
         "dept_id": dept_id or "",
         "role_id": role_id or "",
         "editable_employee_ids": editable_ids,
+        "is_hr": is_hr(request.user),
     })

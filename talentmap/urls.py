@@ -6,6 +6,7 @@ from people.views import (
     logout_confirm, invite_user, register_with_token, config,
     resend_invitation, cancel_invitation,
     download_sample_excel, import_users_excel,
+    api_roles_by_department, delete_employee, api_add_role,
 )
 
 
@@ -22,4 +23,7 @@ urlpatterns = [
     path("evaluations/", include("evaluations.urls")),
     path("accounts/invite/<uuid:token>/resend/", resend_invitation, name="resend_invite"),
     path("accounts/invite/<uuid:token>/cancel/", cancel_invitation, name="cancel_invite"),
+    path("api/roles/<int:department_id>/", api_roles_by_department, name="api_roles_by_department"),
+    path("accounts/employee/<int:employee_id>/delete/", delete_employee, name="delete_employee"),
+    path("api/add-role/", api_add_role, name="api_add_role"),
 ]

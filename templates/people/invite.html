@@ -173,17 +173,31 @@
 
 {% block extra_js %}
 <script>
-  // Mantén tu filtro por departamento
-  const dept = document.getElementById('id_department');
-  if (dept) {
-    dept.addEventListener('change', function() {
-      const deptId = this.value;
-      if (deptId) {
-        window.location.href = '{% url "invite_user" %}?department=' + deptId;
-      } else {
-        window.location.href = '{% url "invite_user" %}';
-      }
-    });
+  // Actualiza roles por AJAX al cambiar departamento (sin perder datos del formulario)
+  const deptSelect = document.getElementById('id_department');
+  const roleSelect = document.getElementById('id_role');
+  function loadRolesForDept() {
+    const deptId = deptSelect.value;
+    const prevRole = roleSelect.value;
+    roleSelect.innerHTML = '<option value="">Selecciona rol</option>';
+    if (deptId) {
+      fetch('{% url "api_roles_by_department" 0 %}'.replace('0', deptId))
+        .then(r => r.json())
+        .then(data => {
+          data.roles.forEach(function(r) {
+            const opt = document.createElement('option');
+            opt.value = r.id;
+            opt.textContent = r.name;
+            roleSelect.appendChild(opt);
+          });
+          if (prevRole) roleSelect.value = prevRole;
+        })
+        .catch(function() { roleSelect.innerHTML = '<option value="">Error al cargar</option>'; });
+    }
+  }
+  if (deptSelect && roleSelect) {
+    deptSelect.addEventListener('change', loadRolesForDept);
+    if (deptSelect.value) loadRolesForDept();
   }
 
   // Copy link UX (sin dependencias)

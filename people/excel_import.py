@@ -17,7 +17,7 @@ def build_sample_excel():
     ws1 = wb.active
     ws1.title = "Plantilla_Importar"
 
-    headers = ["nombre", "apellido", "email", "departamento", "rol", "manager_email"]
+    headers = ["nombre", "apellido", "email", "departamento", "rol", "manager_email", "manager_nombre", "manager_apellido"]
     for col, h in enumerate(headers, 1):
         cell = ws1.cell(row=1, column=col, value=h)
         cell.font = Font(bold=True)
@@ -27,7 +27,9 @@ def build_sample_excel():
     ws1.cell(row=2, column=4, value="IT")
     ws1.cell(row=2, column=5, value="Developer")
     ws1.cell(row=2, column=6, value="jefe@empresa.com")
-    for col in range(1, 7):
+    ws1.cell(row=2, column=7, value="(opcional: si manager está en este Excel)")
+    ws1.cell(row=2, column=8, value="")
+    for col in range(1, 9):
         ws1.column_dimensions[get_column_letter(col)].width = 18
 
     ws2 = wb.create_sheet("Usuarios_Actuales", 1)
@@ -55,6 +57,22 @@ def build_sample_excel():
         ])
     for col in range(1, 7):
         ws2.column_dimensions[get_column_letter(col)].width = 20
+
+    ws3 = wb.create_sheet("Departamentos", 2)
+    ws3.append(["departamento"])
+    ws3.cell(row=1, column=1).font = Font(bold=True)
+    for d in Department.objects.all().order_by("name"):
+        ws3.append([d.name])
+    ws3.column_dimensions["A"].width = 25
+
+    ws4 = wb.create_sheet("Roles", 3)
+    ws4.append(["departamento", "rol"])
+    ws4.cell(row=1, column=1).font = Font(bold=True)
+    ws4.cell(row=1, column=2).font = Font(bold=True)
+    for r in Role.objects.select_related("department").order_by("department__name", "name"):
+        ws4.append([r.department.name, r.name])
+    ws4.column_dimensions["A"].width = 25
+    ws4.column_dimensions["B"].width = 25
 
     buffer = io.BytesIO()
     wb.save(buffer)
@@ -85,6 +103,8 @@ def parse_excel_import(file):
             return [], [f"Falta la columna '{name}' en el archivo."]
     idx["email"] = header.index("email") if "email" in header else -1
     idx["manager_email"] = header.index("manager_email") if "manager_email" in header else -1
+    idx["manager_nombre"] = header.index("manager_nombre") if "manager_nombre" in header else -1
+    idx["manager_apellido"] = header.index("manager_apellido") if "manager_apellido" in header else -1
 
     depts = {d.name: d for d in Department.objects.all()}
     roles_by_dept = {}
@@ -113,6 +133,8 @@ def parse_excel_import(file):
         dept_name = _cell("departamento")
         rol_name = _cell("rol")
         manager_email = _cell("manager_email").lower()
+        manager_nombre = _cell("manager_nombre")
+        manager_apellido = _cell("manager_apellido")
 
         if not nombre or not apellido:
             errors.append(f"Fila {i}: nombre y apellido son obligatorios.")
@@ -137,8 +159,21 @@ def parse_excel_import(file):
         if manager_email:
             manager = emp_by_email.get(manager_email.lower())
             if not manager:
-                errors.append(f"Fila {i}: manager_email '{manager_email}' no coincide con ningún empleado con email.")
+                errors.append(f"Fila {i}: manager_email '{manager_email}' no coincide con ningún empleado existente.")
                 continue
+        elif manager_nombre and manager_apellido:
+            result.append({
+                "first_name": nombre,
+                "last_name": apellido,
+                "email": email,
+                "department": dept,
+                "role": role,
+                "manager": None,
+                "manager_nombre": manager_nombre,
+                "manager_apellido": manager_apellido,
+                "row": i,
+            })
+            continue
 
         result.append({
             "first_name": nombre,
@@ -147,6 +182,8 @@ def parse_excel_import(file):
             "department": dept,
             "role": role,
             "manager": manager,
+            "manager_nombre": "",
+            "manager_apellido": "",
             "row": i,
         })
 

@@ -53,8 +53,8 @@
       </div>
     </div>
 
-    <form class="d-flex gap-2 flex-wrap">
-      <select class="form-select" name="department" style="min-width: 200px;">
+    <form class="d-flex gap-2 flex-wrap" id="ninebox-filter-form">
+      <select class="form-select" name="department" style="min-width: 200px;" id="ninebox-dept">
         <option value="">Todos los departamentos</option>
         {% for d in departments %}
           <option value="{{ d.id }}" {% if dept_id == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
@@ -100,7 +100,8 @@
                      data-box="{{ s.box_label }}"
                      data-can-edit="{% if s.employee.id in editable_employee_ids %}1{% endif %}"
                      data-edit-qual-url="{% url 'edit_qualitative' s.employee.id %}"
-                     data-edit-quant-url="{% url 'competency_picker' s.employee.id %}">
+                     data-edit-quant-url="{% url 'competency_picker' s.employee.id %}"
+                     data-delete-url="{% url 'delete_employee' s.employee.id %}">
                   <div>
                     <div class="emp-name">{{ s.employee }}</div>
                     <div class="emp-role">{{ s.employee.role.name }} · {{ s.employee.department.name }}</div>
@@ -149,7 +150,14 @@
       </div>
       <div class="modal-footer" id="empModalFooter">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-        <div id="emp-edit-btns" class="d-flex gap-2" style="display: none;"></div>
+        <div id="emp-edit-btns" class="d-flex gap-2 me-auto" style="display: none;"></div>
+        {% if is_hr %}
+        <form id="emp-delete-form" method="post" action="" class="d-inline m-0" onsubmit="return confirm('¿Desactivar a este usuario? No podrá acceder al sistema.');">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
+        </form>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -176,6 +184,13 @@
       document.getElementById('emp-box').textContent = el.dataset.box;
 
       editBtns.innerHTML = '';
+      var deleteForm = document.getElementById('emp-delete-form');
+      if (deleteForm && el.dataset.deleteUrl) {
+        deleteForm.action = el.dataset.deleteUrl;
+        deleteForm.style.display = '';
+      } else if (deleteForm) {
+        deleteForm.style.display = 'none';
+      }
       if (el.dataset.canEdit === '1') {
         const a1 = document.createElement('a');
         a1.href = el.dataset.editQualUrl;
@@ -195,5 +210,14 @@
     });
   });
 })();
+
+  // Al cambiar departamento, recargar para mostrar solo roles de ese departamento
+  const filterForm = document.getElementById('ninebox-filter-form');
+  const deptSelect = document.getElementById('ninebox-dept');
+  if (filterForm && deptSelect) {
+    deptSelect.addEventListener('change', function() {
+      filterForm.submit();
+    });
+  }
 </script>
 {% endblock %}

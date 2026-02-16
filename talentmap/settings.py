@@ -92,6 +92,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'people.context_processors.hr_access',
+                'evaluations.context_processors.current_cycle',
             ],
         },
     },

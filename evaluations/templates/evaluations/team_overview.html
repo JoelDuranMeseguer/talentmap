@@ -9,8 +9,8 @@
       <div class="text-muted">{{ cycle.name }}</div>
     </div>
     <div class="d-flex gap-2">
-      <a class="btn btn-outline-secondary" href="{% url 'eval_home' cycle.id %}">Volver</a>
-      <a class="btn btn-outline-primary" href="{% url 'nine_box' cycle.id %}">9-Box</a>
+      <a class="btn btn-outline-secondary" href="{% url 'eval_home' %}">Volver</a>
+      <a class="btn btn-outline-primary" href="{% url 'nine_box' %}">9-Box</a>
     </div>
   </div>
 
@@ -43,8 +43,8 @@
               </td>
               <td>
                 <div class="d-flex gap-2">
-                  <a class="btn btn-sm btn-primary" href="{% url 'edit_qualitative' cycle.id e.id %}">Cualitativo</a>
-                  <a class="btn btn-sm btn-outline-primary" href="{% url 'competency_picker' cycle.id e.id %}">Cuantitativo</a>
+                  <a class="btn btn-sm btn-primary" href="{% url 'edit_qualitative' e.id %}">Cualitativo</a>
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'competency_picker' e.id %}">Cuantitativo</a>
                 </div>
               </td>
             </tr>

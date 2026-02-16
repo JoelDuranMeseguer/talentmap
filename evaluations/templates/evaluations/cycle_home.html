@@ -2,14 +2,23 @@
 {% block title %}Panel · {{ cycle.name }} · TalentMap{% endblock %}
 {% block content %}
 <div class="container py-4">
-  <div class="d-flex justify-content-between align-items-start mb-4">
+  <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
     <div>
       <h3 class="mb-1">Panel</h3>
-      <div class="text-muted">{{ cycle.name }}</div>
+      <div class="text-muted">Ciclo actual: <strong>{{ cycle.name }}</strong></div>
     </div>
-    <div class="d-flex gap-2">
-      <a class="btn btn-outline-secondary" href="{% url 'logout' %}">Salir</a>
-    </div>
+    {% if all_cycles|length > 1 %}
+    <form method="post" action="{% url 'set_cycle' %}" class="d-flex align-items-center gap-2">
+      {% csrf_token %}
+      <label class="text-muted small mb-0">Ver otro ciclo:</label>
+      <select name="cycle_id" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+        {% for c in all_cycles %}
+          <option value="{{ c.id }}" {% if c.id == cycle.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    </form>
+    {% endif %}
   </div>
 
   <div class="row g-3">
@@ -27,8 +36,8 @@
         {% endif %}
         {% if can_edit_me %}
           <div class="d-flex gap-2 mt-3">
-            <a class="btn btn-primary" href="{% url 'edit_qualitative' cycle.id me.id %}">Editar cualitativo</a>
-            <a class="btn btn-outline-primary" href="{% url 'competency_picker' cycle.id me.id %}">Editar cuantitativo</a>
+            <a class="btn btn-primary" href="{% url 'edit_qualitative' me.id %}">Editar cualitativo</a>
+            <a class="btn btn-outline-primary" href="{% url 'competency_picker' me.id %}">Editar cuantitativo</a>
           </div>
         {% else %}
           <p class="text-muted small mt-2 mb-0">Solo tu superior o administrador pueden editar tu evaluación.</p>
@@ -42,8 +51,8 @@
         {% if is_manager or is_hr %}
           <div class="text-muted">Gestiona evaluaciones y consulta el mapa.</div>
           <div class="d-flex gap-2 mt-3 flex-wrap">
-            <a class="btn btn-primary" href="{% url 'team_overview' cycle.id %}">Mi equipo</a>
-            <a class="btn btn-outline-primary" href="{% url 'nine_box' cycle.id %}">Mapa 9-Box</a>
+            <a class="btn btn-primary" href="{% url 'team_overview' %}">Mi equipo</a>
+            <a class="btn btn-outline-primary" href="{% url 'nine_box' %}">Mapa de Talento</a>
           </div>
         {% else %}
           <div class="text-muted">No tienes permisos de manager/HR.</div>

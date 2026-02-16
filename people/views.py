@@ -10,6 +10,8 @@ from datetime import timedelta
 from .models import Invitation, Employee, Department, Role
 from .forms import InviteForm, RegisterForm, DepartmentForm, RoleForm
 from .services.access import is_hr
+from django.views.decorators.http import require_POST
+from django.conf import settings
 
 
 @login_required
@@ -73,7 +75,12 @@ def invite_user(request):
         "department", "role", "created_by"
     )[:20]
 
-    return render(request, "people/invite.html", {"form": form, "pending_invites": pending_invites})
+    return render(request, "people/invite.html", {
+    "form": form,
+    "pending_invites": pending_invites,
+    "SITE_URL": getattr(settings, "SITE_URL", "http://127.0.0.1:8000"),
+    })
+
 
 
 def register_with_token(request):
@@ -146,3 +153,59 @@ def config(request):
         "departments": departments,
         "roles": roles,
     })
+
+@require_POST
+@login_required
+def resend_invitation(request, token):
+    if not is_hr(request.user):
+        return render(request, "evaluations/forbidden.html", status=403)
+
+    inv = get_object_or_404(Invitation, token=token)
+
+    if inv.used_at:
+        messages.error(request, "Esta invitación ya fue usada.")
+        return redirect("invite_user")
+
+    # Extiende la expiración al reenviar (7 días desde hoy)
+    inv.expires_at = timezone.now() + timedelta(days=7)
+    inv.save(update_fields=["expires_at"])
+
+    site_url = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
+    register_url = f"{site_url}/accounts/register/?token={inv.token}"
+
+    send_mail(
+        subject="Invitación a TalentMap (reenviada)",
+        message=(
+            "Hola,\n\n"
+            "Te reenviamos tu invitación a TalentMap.\n\n"
+            f"Crea tu cuenta aquí: {register_url}\n\n"
+            "Este enlace expira en 7 días."
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[inv.email],
+        fail_silently=False,
+    )
+
+    messages.success(request, f"Invitación reenviada a {inv.email}.")
+    return redirect("invite_user")
+
+
+@require_POST
+@login_required
+def cancel_invitation(request, token):
+    if not is_hr(request.user):
+        return render(request, "evaluations/forbidden.html", status=403)
+
+    inv = get_object_or_404(Invitation, token=token)
+
+    if inv.used_at:
+        messages.error(request, "No puedes cancelar una invitación ya usada.")
+        return redirect("invite_user")
+
+    # Soft-cancel: la hacemos expirar ahora (sin borrar registro)
+    inv.expires_at = timezone.now()
+    inv.save(update_fields=["expires_at"])
+
+    messages.success(request, f"Invitación cancelada: {inv.email}.")
+    return redirect("invite_user")
+

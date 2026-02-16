@@ -1,67 +1,140 @@
 {% extends "base.html" %}
 {% block title %}Invitar usuarios · TalentMap{% endblock %}
+
 {% block content %}
 <div class="container">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="mb-0">Invitar usuarios</h3>
+    <div>
+      <h3 class="mb-0">Invitar usuarios</h3>
+      <div class="text-muted small">Gestiona invitaciones pendientes y reenvíos.</div>
+    </div>
     <a class="btn btn-outline-secondary" href="{% url 'home' %}">Volver</a>
   </div>
 
-  <div class="row">
+  <div class="row g-3">
+    <!-- NUEVA INVITACIÓN -->
     <div class="col-lg-5">
-      <div class="card p-4">
-        <h5 class="mb-3">Nueva invitación</h5>
+      <div class="card p-4 shadow-sm border-0">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h5 class="mb-1">Nueva invitación</h5>
+            <div class="text-muted small">Se enviará un correo con un enlace de registro.</div>
+          </div>
+          <span class="badge text-bg-light border">HR</span>
+        </div>
+
         <form method="post" id="invite-form">
           {% csrf_token %}
+
           <div class="mb-3">
             <label class="form-label" for="id_email">Correo electrónico</label>
             {{ form.email }}
-            {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+            {% if form.email.errors %}
+              <div class="text-danger small mt-1">{{ form.email.errors }}</div>
+            {% endif %}
           </div>
+
           <div class="mb-3">
             <label class="form-label" for="id_department">Departamento</label>
             {{ form.department }}
           </div>
+
           <div class="mb-3">
             <label class="form-label" for="id_role">Rol</label>
             {{ form.role }}
           </div>
+
           <div class="mb-3">
             <label class="form-label" for="id_manager">Superior / Jefe (opcional)</label>
             {{ form.manager }}
+            <div class="text-muted small mt-1">Si lo asignas, podrá evaluar al usuario al registrarse.</div>
           </div>
-          <button type="submit" class="btn btn-primary">Enviar invitación</button>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              Enviar invitación
+            </button>
+            {% if request.GET.department %}
+              <a class="btn btn-outline-secondary" href="{% url 'invite_user' %}">Limpiar filtro</a>
+            {% endif %}
+          </div>
         </form>
       </div>
     </div>
+
+    <!-- PENDIENTES -->
     <div class="col-lg-7">
-      <div class="card p-4">
-        <h5 class="mb-3">Invitaciones pendientes</h5>
+      <div class="card p-4 shadow-sm border-0">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h5 class="mb-1">Invitaciones pendientes</h5>
+            <div class="text-muted small">
+              Reenvía si el usuario no lo recibió o cancela si ya no procede.
+            </div>
+          </div>
+
+          {% if pending_invites %}
+            <span class="badge text-bg-secondary">{{ pending_invites|length }} pendientes</span>
+          {% endif %}
+        </div>
+
         {% if pending_invites %}
           <div class="table-responsive">
-            <table class="table table-sm">
-              <thead>
+            <table class="table align-middle mb-0">
+              <thead class="table-light">
                 <tr>
                   <th>Email</th>
                   <th>Departamento</th>
                   <th>Rol</th>
-                  <th>Enviada</th>
+                  <th class="text-nowrap">Enviada</th>
+                  <th class="text-end">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {% for inv in pending_invites %}
                   <tr>
-                    <td>{{ inv.email }}</td>
-                    <td>{{ inv.department.name }}</td>
-                    <td>{{ inv.role.name }}</td>
-                    <td>{{ inv.created_at|date:"d/m/Y" }}</td>
+                    <td class="fw-semibold">{{ inv.email }}</td>
+                    <td class="text-muted">{{ inv.department.name }}</td>
+                    <td class="text-muted">{{ inv.role.name }}</td>
+                    <td class="text-muted text-nowrap">{{ inv.created_at|date:"d/m/Y" }}</td>
+
+                    <td class="text-end">
+                      <div class="d-inline-flex gap-2 align-items-center">
+                        <!-- Copiar enlace (opcional, útil) -->
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-secondary"
+                          data-copy="{{ SITE_URL }}/accounts/register/?token={{ inv.token }}"
+                          title="Copiar enlace"
+                        >
+                          Copiar link
+                        </button>
+
+                        <!-- Reenviar -->
+                        <form method="post" action="{% url 'resend_invite' inv.token %}" class="m-0">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-sm btn-outline-primary">
+                            Reenviar
+                          </button>
+                        </form>
+
+                        <!-- Cancelar (con confirm) -->
+                        <form method="post" action="{% url 'cancel_invite' inv.token %}" class="m-0"
+                              onsubmit="return confirm('¿Cancelar la invitación para {{ inv.email }}?');">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-sm btn-outline-danger">
+                            Cancelar
+                          </button>
+                        </form>
+                      </div>
+                    </td>
                   </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
         {% else %}
-          <p class="text-muted mb-0">No hay invitaciones pendientes.</p>
+          <div class="text-muted mb-0">No hay invitaciones pendientes.</div>
         {% endif %}
       </div>
     </div>
@@ -71,11 +144,33 @@
 
 {% block extra_js %}
 <script>
-  document.getElementById('id_department').addEventListener('change', function() {
-    var deptId = this.value;
-    if (deptId) {
-      window.location.href = '{% url "invite_user" %}?department=' + deptId;
-    }
+  // Mantén tu filtro por departamento
+  const dept = document.getElementById('id_department');
+  if (dept) {
+    dept.addEventListener('change', function() {
+      const deptId = this.value;
+      if (deptId) {
+        window.location.href = '{% url "invite_user" %}?department=' + deptId;
+      } else {
+        window.location.href = '{% url "invite_user" %}';
+      }
+    });
+  }
+
+  // Copy link UX (sin dependencias)
+  document.querySelectorAll('[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const text = btn.getAttribute('data-copy');
+      try {
+        await navigator.clipboard.writeText(text);
+        const old = btn.innerText;
+        btn.innerText = 'Copiado ✅';
+        setTimeout(() => btn.innerText = old, 1200);
+      } catch (e) {
+        // fallback
+        window.prompt("Copia este enlace:", text);
+      }
+    });
   });
 </script>
 {% endblock %}

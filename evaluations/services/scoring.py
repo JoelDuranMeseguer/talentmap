@@ -110,9 +110,66 @@ def assign_tercile(value, t1, t2) -> int:
     return 3
 
 
+def assign_tercile_by_rank(sorted_pairs):
+    """
+    Garantiza 1/3 de la población en cada tercil.
+    sorted_pairs: [(employee, value), ...] ordenado por value ascendente.
+    Devuelve {employee: tercile} con tercile en 1..3.
+    """
+    n = len(sorted_pairs)
+    if n == 0:
+        return {}
+    third = max(1, n // 3)
+    result = {}
+    for i, (emp, _) in enumerate(sorted_pairs):
+        if i < third:
+            result[emp] = 1
+        elif i < 2 * third:
+            result[emp] = 2
+        else:
+            result[emp] = 3
+    return result
+
+
+def terciles_for_scores(scores):
+    """
+    Para una lista de EmployeeCycleScore (p. ej. filtrada por dept/rol),
+    asigna terciles por rango sobre esa población.
+    Devuelve {(qual_tercile, quant_tercile): [score_objs]}.
+    """
+    if not scores:
+        return {}
+    # Ordenar por cualitativo y cuantitativo para terciles
+    ql_pairs = sorted(
+        [(s, float(s.qualitative_score)) for s in scores],
+        key=lambda x: (x[1], x[0].employee_id),
+    )
+    qt_pairs = sorted(
+        [(s, float(s.quantitative_score)) for s in scores],
+        key=lambda x: (x[1], x[0].employee_id),
+    )
+    n = len(scores)
+    third = max(1, n // 3)
+
+    qual_map = {}
+    for i, (s, _) in enumerate(ql_pairs):
+        qual_map[s.employee_id] = 1 if i < third else (2 if i < 2 * third else 3)
+
+    quant_map = {}
+    for i, (s, _) in enumerate(qt_pairs):
+        quant_map[s.employee_id] = 1 if i < third else (2 if i < 2 * third else 3)
+
+    grid = {}
+    for s in scores:
+        qt = (qual_map[s.employee_id], quant_map[s.employee_id])
+        grid.setdefault(qt, []).append(s)
+    return grid
+
+
 def recompute_cycle_scores(cycle, employees_qs):
     """
-    Calcula scores para todos, calcula terciles y asigna 9-box.
+    Calcula scores para todos, asigna terciles por rango (1/3 población en cada eje)
+    y persiste el 9-box.
     """
     # 1) recalcular ejes
     results = []
@@ -121,14 +178,17 @@ def recompute_cycle_scores(cycle, employees_qs):
         qt = compute_quantitative_score(emp, cycle)
         results.append((emp, ql, qt))
 
-    # 2) terciles globales
-    ql_t1, ql_t2 = tercile_thresholds([r[1] for r in results])
-    qt_t1, qt_t2 = tercile_thresholds([r[2] for r in results])
+    # 2) terciles por rango: garantiza ~1/3 en cada tercil
+    ql_sorted = sorted(results, key=lambda r: (float(r[1]), r[0].id))  # asc, ties by id
+    qt_sorted = sorted(results, key=lambda r: (float(r[2]), r[0].id))
+
+    qual_tercile_map = assign_tercile_by_rank([(r[0], r[1]) for r in ql_sorted])
+    quant_tercile_map = assign_tercile_by_rank([(r[0], r[2]) for r in qt_sorted])
 
     # 3) persistir
     for emp, ql, qt in results:
-        qual_t = assign_tercile(ql, ql_t1, ql_t2)
-        quant_t = assign_tercile(qt, qt_t1, qt_t2)
+        qual_t = qual_tercile_map.get(emp, 1)
+        quant_t = quant_tercile_map.get(emp, 1)
         code, label = BOXES[(qual_t, quant_t)]
 
         EmployeeCycleScore.objects.update_or_create(

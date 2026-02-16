@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from evaluations.models import EvaluationCycle, EmployeeCycleScore
 from people.models import Department, Role, Employee
 from people.services.access import managed_employees_qs
-from evaluations.services.scoring import BOXES 
+from evaluations.services.scoring import BOXES, terciles_for_scores
 from people.services.access import is_hr
 from evaluations.services.scoring import recompute_cycle_scores
 from evaluations.forms import GoalFormSet
@@ -13,9 +13,51 @@ from competencies.models import Competency, RoleCompetencyRequirement, Competenc
 from evaluations.models import QuantitativeIndicatorAssessment
 from datetime import date
 
+SESSION_CYCLE_KEY = "eval_current_cycle_id"
+
+
+def _default_cycle():
+    today = date.today()
+    cycle = EvaluationCycle.objects.filter(start_date__lte=today, end_date__gte=today).order_by("-start_date").first()
+    if cycle:
+        return cycle
+    return EvaluationCycle.objects.order_by("-end_date").first()
+
+
+def get_current_cycle(request):
+    """
+    Returns the cycle the user is "in". Uses session or defaults to active/latest cycle.
+    """
+    cycle_id = request.session.get(SESSION_CYCLE_KEY)
+    if cycle_id:
+        cycle = EvaluationCycle.objects.filter(id=cycle_id).first()
+        if cycle:
+            return cycle
+    cycle = _default_cycle()
+    if cycle:
+        request.session[SESSION_CYCLE_KEY] = cycle.id
+    return cycle
+
+
 @login_required
-def competency_picker(request, cycle_id, employee_id):
-    cycle = get_object_or_404(EvaluationCycle, id=cycle_id)
+def set_cycle(request):
+    """POST: switch current cycle. Redirects back to referer or panel."""
+    if request.method != "POST":
+        return redirect("eval_home")
+    cycle_id = request.POST.get("cycle_id")
+    if cycle_id:
+        cycle = EvaluationCycle.objects.filter(id=cycle_id).first()
+        if cycle:
+            request.session[SESSION_CYCLE_KEY] = cycle.id
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "/evaluations/"
+    return redirect(next_url or "eval_home")
+
+
+@login_required
+def competency_picker(request, employee_id):
+    cycle = get_current_cycle(request)
+    if not cycle:
+        return redirect("/admin/")
     emp = get_object_or_404(Employee, id=employee_id)
 
     allowed = is_hr(request.user) or managed_employees_qs(request.user).filter(id=emp.id).exists()
@@ -35,8 +77,10 @@ def competency_picker(request, cycle_id, employee_id):
 
 
 @login_required
-def team_overview(request, cycle_id):
-    cycle = get_object_or_404(EvaluationCycle, id=cycle_id)
+def team_overview(request):
+    cycle = get_current_cycle(request)
+    if not cycle:
+        return redirect("/admin/")
     emps = managed_employees_qs(request.user).select_related("user", "role", "department").order_by("user__last_name")
 
     # HR: opcionalmente ver toda la empresa (si quieres)
@@ -56,8 +100,10 @@ def team_overview(request, cycle_id):
 
 
 @login_required
-def cycle_home(request, cycle_id):
-    cycle = get_object_or_404(EvaluationCycle, id=cycle_id)
+def cycle_home(request):
+    cycle = get_current_cycle(request)
+    if not cycle:
+        return redirect("/admin/")
 
     # Si el usuario no está vinculado a Employee, lo mandamos a admin o error amable
     try:
@@ -81,26 +127,20 @@ def cycle_home(request, cycle_id):
     })
 
 
-def _default_cycle():
-    today = date.today()
-    # ciclo actual
-    cycle = EvaluationCycle.objects.filter(start_date__lte=today, end_date__gte=today).order_by("-start_date").first()
-    if cycle:
-        return cycle
-    # si no hay ciclo “activo”, el último por fecha fin
-    return EvaluationCycle.objects.order_by("-end_date").first()
 
 @login_required
 def home(request):
-    cycle = _default_cycle()
+    cycle = get_current_cycle(request)
     if not cycle:
         # primera ejecución: no hay ciclos
         return redirect("/admin/")  # o una pantalla “crea un ciclo”
-    return redirect("eval_home", cycle_id=cycle.id)
+    return redirect("eval_home")
 
 @login_required
-def edit_qualitative(request, employee_id, cycle_id):
-    cycle = get_object_or_404(EvaluationCycle, id=cycle_id)
+def edit_qualitative(request, employee_id):
+    cycle = get_current_cycle(request)
+    if not cycle:
+        return redirect("/admin/")
     emp = get_object_or_404(Employee, id=employee_id)
 
     # permiso: HR o manager del empleado (en managed_employees_qs)
@@ -127,10 +167,11 @@ def edit_qualitative(request, employee_id, cycle_id):
             for obj in formset.deleted_objects:
                 obj.delete()
 
-            # opcional: recalcular inmediatamente solo este empleado (rápido)
-            recompute_cycle_scores(cycle, Employee.objects.filter(id=emp.id))
+            # Recalcular scores para toda la cohorte (terciles requieren población completa)
+            base_emps = managed_employees_qs(request.user) if not is_hr(request.user) else Employee.objects.filter(active=True)
+            recompute_cycle_scores(cycle, base_emps)
 
-            return redirect("nine_box", cycle_id=cycle.id)
+            return redirect("nine_box")
     else:
         formset = GoalFormSet(queryset=qs)
 
@@ -141,8 +182,10 @@ def edit_qualitative(request, employee_id, cycle_id):
     })
 
 @login_required
-def edit_quantitative(request, employee_id, cycle_id, competency_id):
-    cycle = get_object_or_404(EvaluationCycle, id=cycle_id)
+def edit_quantitative(request, employee_id, competency_id):
+    cycle = get_current_cycle(request)
+    if not cycle:
+        return redirect("/admin/")
     emp = get_object_or_404(Employee, id=employee_id)
     comp = get_object_or_404(Competency, id=competency_id)
 
@@ -180,8 +223,9 @@ def edit_quantitative(request, employee_id, cycle_id, competency_id):
                         defaults={"met": met, "assessed_by": request.user},
                     )
 
-        recompute_cycle_scores(cycle, Employee.objects.filter(id=emp.id))
-        return redirect("nine_box", cycle_id=cycle.id)
+        base_emps = managed_employees_qs(request.user) if not is_hr(request.user) else Employee.objects.filter(active=True)
+        recompute_cycle_scores(cycle, base_emps)
+        return redirect("nine_box")
 
     return render(request, "evaluations/edit_quantitative.html", {
         "cycle": cycle,
@@ -193,8 +237,10 @@ def edit_quantitative(request, employee_id, cycle_id, competency_id):
     })
 
 @login_required
-def nine_box_dashboard(request, cycle_id):
-    cycle = get_object_or_404(EvaluationCycle, id=cycle_id)
+def nine_box_dashboard(request):
+    cycle = get_current_cycle(request)
+    if not cycle:
+        return redirect("/admin/")
 
     dept_id = request.GET.get("department")
     role_id = request.GET.get("role")
@@ -205,18 +251,17 @@ def nine_box_dashboard(request, cycle_id):
     if role_id:
         base_emps = base_emps.filter(role_id=role_id)
 
-    scores = (
+    scores = list(
         EmployeeCycleScore.objects
         .filter(cycle=cycle, employee__in=base_emps)
         .select_related("employee", "employee__user", "employee__department", "employee__role")
         .order_by("-qualitative_score", "-quantitative_score")
     )
 
-    grid = {}
-    for s in scores:
-        grid.setdefault((s.qual_tercile, s.quant_tercile), []).append(s)
+    # Terciles por rango sobre la población mostrada (1/3 en cada eje)
+    grid = terciles_for_scores(scores)
 
-    # Orden: Y (cualitativo) 3->1, X (cuantitativo) 1->3
+    # Orden: Y (cualitativo) 3 arriba, 1 abajo; X (cuantitativo) 1 izquierda, 3 derecha
     order = [
         (3, 1), (3, 2), (3, 3),
         (2, 1), (2, 2), (2, 3),

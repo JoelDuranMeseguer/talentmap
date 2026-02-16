@@ -1,67 +1,167 @@
 {% extends "base.html" %}
-{% block title %}Cualitativo · {{ employee }} · TalentMap{% endblock %}
+{% block title %}Cuantitativo · TalentMap{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-  <div class="d-flex justify-content-between align-items-start mb-4">
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h3 class="mb-1">Metas cualitativas</h3>
-      <p class="text-muted mb-0">{{ employee }} · {{ cycle.name }}</p>
+      <h3 class="mb-0">Metas cuantitativas</h3>
+      <div class="text-muted small">{{ employee }} · {{ cycle.name }}</div>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'nine_box' cycle.id %}">Volver al mapa</a>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'eval_home' %}">Volver</a>
+    </div>
   </div>
 
-  <div class="card p-4">
-    <p class="text-muted small mb-4">Los pesos deben sumar exactamente 100%.</p>
-
-    <form method="post" id="qual-form">
+  <div class="card p-4 shadow-sm border-0">
+    <form method="post" id="goals-form">
       {% csrf_token %}
       {{ formset.management_form }}
 
-      <div class="table-responsive">
-        <table class="table">
-          <thead>
-            <tr>
-              <th style="min-width: 180px;">Título</th>
-              <th style="min-width: 200px;">Descripción</th>
-              <th style="width: 100px;">Peso %</th>
-              <th style="width: 120px;">Completado %</th>
-              <th style="width: 90px;" class="text-center">Borrar</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for f in formset %}
-              <tr class="{% if forloop.last and not f.instance.pk %}table-light goal-add-row{% endif %}">
-                <td class="align-middle">{{ f.title }}{% if f.title.errors %}<div class="text-danger small mt-1">{{ f.title.errors }}</div>{% endif %}</td>
-                <td class="align-middle">{{ f.description }}{% if f.description.errors %}<div class="text-danger small mt-1">{{ f.description.errors }}</div>{% endif %}</td>
-                <td class="align-middle">{{ f.weight_percent }}{% if f.weight_percent.errors %}<div class="text-danger small mt-1">{{ f.weight_percent.errors }}</div>{% endif %}</td>
-                <td class="align-middle">{{ f.completion_percent }}{% if f.completion_percent.errors %}<div class="text-danger small mt-1">{{ f.completion_percent.errors }}</div>{% endif %}</td>
-                <td class="align-middle text-center">
-                  {% if f.instance.pk %}
-                    <div class="form-check form-switch d-inline-block">
-                      {{ f.DELETE }}
-                      <label class="form-check-label text-muted small" for="{{ f.DELETE.id_for_label }}">Eliminar</label>
-                    </div>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                  {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h5 class="mb-1">Listado de metas</h5>
+          <div class="text-muted small">
+            Los pesos deben sumar <b>100%</b>.
+            <span class="ms-2">Total actual: <b id="weights-total">0.00%</b></span>
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline-primary" id="add-goal">
+          + Añadir meta
+        </button>
       </div>
 
       {% if formset.non_form_errors %}
         <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
       {% endif %}
 
-      <p class="text-muted small mt-2 mb-0">La última fila permite añadir una nueva meta (deja en blanco si no quieres añadir).</p>
-      <div class="d-flex gap-2 mt-4 pt-3 border-top">
-        <button type="submit" class="btn btn-primary">Guardar cambios</button>
-        <a class="btn btn-outline-secondary" href="{% url 'nine_box' cycle.id %}">Cancelar</a>
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="min-width:220px;">Título</th>
+              <th style="min-width:260px;">Descripción</th>
+              <th style="width:140px;">Peso %</th>
+              <th style="width:160px;">Completado %</th>
+              <th style="width:120px;" class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="goals-tbody">
+            {% for f in formset %}
+              <tr class="goal-row">
+                <td>
+                  {{ f.id }} {# hidden pk #}
+                  {{ f.title }}
+                  {% if f.title.errors %}<div class="text-danger small">{{ f.title.errors }}</div>{% endif %}
+                </td>
+                <td>
+                  {{ f.description }}
+                  {% if f.description.errors %}<div class="text-danger small">{{ f.description.errors }}</div>{% endif %}
+                </td>
+                <td>
+                  {{ f.weight_percent }}
+                  {% if f.weight_percent.errors %}<div class="text-danger small">{{ f.weight_percent.errors }}</div>{% endif %}
+                </td>
+                <td>
+                  {{ f.completion_percent }}
+                  {% if f.completion_percent.errors %}<div class="text-danger small">{{ f.completion_percent.errors }}</div>{% endif %}
+                </td>
+                <td class="text-end">
+                  <div class="d-none">
+                    {{ f.DELETE }}
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-danger js-remove">
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            {% empty %}
+              <tr id="empty-state">
+                <td colspan="5" class="text-muted">No hay metas aún. Pulsa “Añadir meta”.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
+
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-primary" type="submit">Guardar</button>
+        <a class="btn btn-outline-secondary" href="{% url 'eval_home' %}">Cancelar</a>
+      </div>
+
+      {# Prototype para JS #}
+      <template id="empty-form-template">
+        <tr class="goal-row">
+          <td>
+            {{ formset.empty_form.id }}
+            {{ formset.empty_form.title }}
+          </td>
+          <td>{{ formset.empty_form.description }}</td>
+          <td>{{ formset.empty_form.weight_percent }}</td>
+          <td>{{ formset.empty_form.completion_percent }}</td>
+          <td class="text-end">
+            <div class="d-none">{{ formset.empty_form.DELETE }}</div>
+            <button type="button" class="btn btn-sm btn-outline-danger js-remove">Eliminar</button>
+          </td>
+        </tr>
+      </template>
     </form>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const tbody = document.getElementById("goals-tbody");
+  const addBtn = document.getElementById("add-goal");
+  const template = document.getElementById("empty-form-template");
+  const totalFormsInput = document.getElementById("id_form-TOTAL_FORMS");
+  const weightsTotalEl = document.getElementById("weights-total");
+
+  function recalcWeights() {
+    let total = 0;
+    document.querySelectorAll('input[name$="-weight_percent"]').forEach((inp) => {
+      const row = inp.closest("tr");
+      const del = row.querySelector('input[name$="-DELETE"]');
+      if (del && del.checked) return;
+      total += parseFloat(inp.value || "0");
+    });
+    weightsTotalEl.innerText = total.toFixed(2) + "%";
+  }
+
+  function wireRow(row) {
+    // Eliminar = marcar DELETE y ocultar fila
+    const btn = row.querySelector(".js-remove");
+    btn.addEventListener("click", () => {
+      const del = row.querySelector('input[name$="-DELETE"]');
+      if (del) del.checked = true;
+      row.classList.add("opacity-50");
+      row.style.display = "none";
+      recalcWeights();
+    });
+
+    // Recalcular pesos al cambiar
+    const w = row.querySelector('input[name$="-weight_percent"]');
+    if (w) w.addEventListener("input", recalcWeights);
+  }
+
+  // wire existing
+  document.querySelectorAll(".goal-row").forEach(wireRow);
+  recalcWeights();
+
+  addBtn.addEventListener("click", () => {
+    // quitar empty-state si existe
+    const emptyState = document.getElementById("empty-state");
+    if (emptyState) emptyState.remove();
+
+    const formIdx = parseInt(totalFormsInput.value, 10);
+    const html = template.innerHTML.replaceAll("__prefix__", formIdx);
+    tbody.insertAdjacentHTML("beforeend", html);
+    totalFormsInput.value = formIdx + 1;
+
+    const newRow = tbody.lastElementChild;
+    wireRow(newRow);
+    recalcWeights();
+  });
+</script>
 {% endblock %}

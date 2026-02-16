@@ -40,7 +40,7 @@ class LevelIndicator(models.Model):
 class RoleCompetencyRequirement(models.Model):
     """
     Perfil ideal por rol: hasta qué nivel se exige en cada competencia.
-    weight opcional para ponderar competencias en el cuantitativo.
+    weight opcional para ponderar competencias en el cualitativo.
     """
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="competency_requirements")
     competency = models.ForeignKey(Competency, on_delete=models.PROTECT, related_name="role_requirements")

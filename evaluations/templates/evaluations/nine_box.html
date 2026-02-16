@@ -2,18 +2,53 @@
 {% block title %}Mapa de Talento · {{ cycle.name }} · TalentMap{% endblock %}
 {% block content %}
 <style>
-  .ninebox-cell { min-height: 220px; border: 1px solid var(--tm-border, #e5e7eb); border-radius: 14px; padding: 16px; background: #fff; }
-  .ninebox-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .ninebox-emp { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: #f8fafc; margin-bottom: 8px; }
-  .ninebox-muted { color: #6c757d; font-size: 12px; }
-  .ninebox-title { font-weight: 600; font-size: 13px; }
+  .ninebox-map { display: flex; flex-direction: column; align-items: flex-start; }
+  .ninebox-map-inner { display: flex; align-items: stretch; gap: 0; }
+  .ninebox-axis-y {
+    width: 52px; display: flex; flex-direction: column; justify-content: space-between;
+    color: #64748b; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 20px 8px 20px 0; text-align: right;
+  }
+  .ninebox-content { display: flex; flex-direction: column; }
+  .ninebox-axis-x {
+    display: flex; justify-content: space-around; width: 100%;
+    color: #64748b; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 6px 8px 0;
+  }
+  .ninebox-axis-x span { flex: 1; text-align: center; }
+  .ninebox-grid-wrap { min-width: 0; }
+  .ninebox-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+    background: linear-gradient(90deg, #e2e8f0 1px, transparent 1px), linear-gradient(0deg, #e2e8f0 1px, transparent 1px);
+    background-size: calc(33.333% + 1px) calc(33.333% + 1px);
+    background-position: 0 0; padding: 2px; border-radius: 12px;
+  }
+  .ninebox-cell {
+    min-height: 200px; border-radius: 10px; padding: 14px; background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: box-shadow 0.2s;
+  }
+  .ninebox-cell:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .ninebox-cell-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
+  .ninebox-cell-title { font-weight: 600; font-size: 12px; color: #334155; }
+  .ninebox-cell-meta { color: #94a3b8; font-size: 11px; }
+  .ninebox-emp {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px;
+    border-radius: 8px; background: #f8fafc; margin-bottom: 6px; border: 1px solid #f1f5f9;
+  }
+  .ninebox-emp:last-child { margin-bottom: 0; }
+  .ninebox-emp .emp-name { font-size: 13px; font-weight: 500; color: #1e293b; }
+  .ninebox-emp .emp-role { color: #94a3b8; font-size: 11px; margin-top: 2px; }
+  .ninebox-emp .emp-scores { color: #64748b; font-size: 11px; }
+  .ninebox-empty { color: #94a3b8; font-size: 12px; font-style: italic; padding: 12px 0; }
 </style>
 <div class="container py-4">
   <div class="d-flex align-items-end justify-content-between flex-wrap gap-2 mb-4">
     <div>
       <h3 class="mb-0">Mapa de Talento</h3>
-      <div class="ninebox-muted">{{ cycle.name }} · Y: Cualitativo · X: Cuantitativo</div>
-      <div class="ninebox-muted">Arriba = mejor cualitativo · Derecha = mejor cuantitativo</div>
+      <div class="text-muted small mt-1">{{ cycle.name }}</div>
+      <div class="text-muted small mt-1">
+        <strong>Y = Cualitativo</strong> (arriba = mejor) · <strong>X = Cuantitativo</strong> (derecha = mejor)
+      </div>
     </div>
 
     <form class="d-flex gap-2 flex-wrap">
@@ -33,31 +68,49 @@
     </form>
   </div>
 
-  <div class="ninebox-grid">
-    {% for c in cells %}
-      <div class="ninebox-cell">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <div class="ninebox-title">{{ c.label }} <span class="ninebox-muted">· Y={{ c.qual }} X={{ c.quant }}</span></div>
-          <div class="ninebox-muted">{{ c.items|length }} empleados</div>
-        </div>
-        {% if c.items %}
-          {% for s in c.items %}
-            <div class="ninebox-emp">
-              <div>
-                <div>{{ s.employee }}</div>
-                <div class="ninebox-muted">{{ s.employee.role.name }} · {{ s.employee.department.name }}</div>
-              </div>
-              <div class="text-end">
-                <div class="ninebox-muted">Qlt {{ s.qualitative_score }} · Qnt {{ s.quantitative_score }}</div>
-                <span class="badge bg-secondary">{{ s.box_label }}</span>
-              </div>
-            </div>
-          {% endfor %}
-        {% else %}
-          <div class="ninebox-muted">Sin empleados en este sector.</div>
-        {% endif %}
+  <div class="ninebox-map">
+    <div class="ninebox-map-inner">
+      <div class="ninebox-axis-y" title="Cualitativo (arriba = mejor)">
+        <span>Alto</span>
+        <span>Medio</span>
+        <span>Bajo</span>
       </div>
-    {% endfor %}
+      <div class="ninebox-content">
+        <div class="ninebox-grid-wrap">
+      <div class="ninebox-grid">
+        {% for c in cells %}
+          <div class="ninebox-cell">
+            <div class="ninebox-cell-header">
+              <div class="ninebox-cell-title">{{ c.label }}</div>
+              <span class="ninebox-cell-meta">{{ c.items|length }} empleados</span>
+            </div>
+            {% if c.items %}
+              {% for s in c.items %}
+                <div class="ninebox-emp">
+                  <div>
+                    <div class="emp-name">{{ s.employee }}</div>
+                    <div class="emp-role">{{ s.employee.role.name }} · {{ s.employee.department.name }}</div>
+                  </div>
+                  <div class="text-end">
+                    <div class="emp-scores">Clt {{ s.qualitative_score }} · Cnt {{ s.quantitative_score }}</div>
+                    <span class="badge bg-secondary mt-1">{{ s.box_label }}</span>
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="ninebox-empty">Sin empleados en este sector</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+        </div>
+        <div class="ninebox-axis-x" title="Cuantitativo (derecha = mejor)">
+          <span>Bajo</span>
+          <span>Medio</span>
+          <span>Alto</span>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

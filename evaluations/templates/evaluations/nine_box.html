@@ -34,7 +34,9 @@
   .ninebox-emp {
     display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px;
     border-radius: 8px; background: #f8fafc; margin-bottom: 6px; border: 1px solid #f1f5f9;
+    cursor: pointer; transition: background 0.15s;
   }
+  .ninebox-emp:hover { background: #f1f5f9; }
   .ninebox-emp:last-child { margin-bottom: 0; }
   .ninebox-emp .emp-name { font-size: 13px; font-weight: 500; color: #1e293b; }
   .ninebox-emp .emp-role { color: #94a3b8; font-size: 11px; margin-top: 2px; }
@@ -86,7 +88,19 @@
             </div>
             {% if c.items %}
               {% for s in c.items %}
-                <div class="ninebox-emp">
+                <div class="ninebox-emp"
+                     data-emp-id="{{ s.employee.id }}"
+                     data-name="{{ s.employee }}"
+                     data-role="{{ s.employee.role.name }}"
+                     data-dept="{{ s.employee.department.name }}"
+                     data-manager="{% if s.employee.manager %}{{ s.employee.manager }}{% else %}—{% endif %}"
+                     data-email="{% if s.employee.user.email %}{{ s.employee.user.email }}{% else %}(sin email){% endif %}"
+                     data-clt="{{ s.qualitative_score }}"
+                     data-cnt="{{ s.quantitative_score }}"
+                     data-box="{{ s.box_label }}"
+                     data-can-edit="{% if s.employee.id in editable_employee_ids %}1{% endif %}"
+                     data-edit-qual-url="{% url 'edit_qualitative' s.employee.id %}"
+                     data-edit-quant-url="{% url 'competency_picker' s.employee.id %}">
                   <div>
                     <div class="emp-name">{{ s.employee }}</div>
                     <div class="emp-role">{{ s.employee.role.name }} · {{ s.employee.department.name }}</div>
@@ -113,4 +127,73 @@
     </div>
   </div>
 </div>
+
+<!-- Modal: empleado -->
+<div class="modal fade" id="empModal" tabindex="-1" aria-labelledby="empModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="empModalLabel">Detalle empleado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body" id="empModalBody">
+        <p class="mb-1"><strong>Nombre:</strong> <span id="emp-name"></span></p>
+        <p class="mb-1"><strong>Email:</strong> <span id="emp-email"></span></p>
+        <p class="mb-1"><strong>Departamento:</strong> <span id="emp-dept"></span></p>
+        <p class="mb-1"><strong>Rol:</strong> <span id="emp-role"></span></p>
+        <p class="mb-1"><strong>Manager:</strong> <span id="emp-manager"></span></p>
+        <hr>
+        <p class="mb-1"><strong>Cualitativo:</strong> <span id="emp-clt"></span></p>
+        <p class="mb-1"><strong>Cuantitativo:</strong> <span id="emp-cnt"></span></p>
+        <p class="mb-0"><strong>9-Box:</strong> <span id="emp-box" class="badge bg-secondary"></span></p>
+      </div>
+      <div class="modal-footer" id="empModalFooter">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <div id="emp-edit-btns" class="d-flex gap-2" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const modal = new bootstrap.Modal(document.getElementById('empModal'));
+  const body = document.getElementById('empModalBody');
+  const footer = document.getElementById('empModalFooter');
+  const editBtns = document.getElementById('emp-edit-btns');
+
+  document.querySelectorAll('.ninebox-emp').forEach(function(el) {
+    el.addEventListener('click', function() {
+      document.getElementById('emp-name').textContent = el.dataset.name;
+      document.getElementById('emp-email').textContent = el.dataset.email;
+      document.getElementById('emp-dept').textContent = el.dataset.dept;
+      document.getElementById('emp-role').textContent = el.dataset.role;
+      document.getElementById('emp-manager').textContent = el.dataset.manager;
+      document.getElementById('emp-clt').textContent = el.dataset.clt;
+      document.getElementById('emp-cnt').textContent = el.dataset.cnt;
+      document.getElementById('emp-box').textContent = el.dataset.box;
+
+      editBtns.innerHTML = '';
+      if (el.dataset.canEdit === '1') {
+        const a1 = document.createElement('a');
+        a1.href = el.dataset.editQualUrl;
+        a1.className = 'btn btn-primary btn-sm';
+        a1.textContent = 'Editar cualitativo';
+        const a2 = document.createElement('a');
+        a2.href = el.dataset.editQuantUrl;
+        a2.className = 'btn btn-outline-primary btn-sm';
+        a2.textContent = 'Editar cuantitativo';
+        editBtns.appendChild(a1);
+        editBtns.appendChild(a2);
+        editBtns.style.display = 'flex';
+      } else {
+        editBtns.style.display = 'none';
+      }
+      modal.show();
+    });
+  });
+})();
+</script>
 {% endblock %}

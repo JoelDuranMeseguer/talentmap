@@ -2,8 +2,11 @@ from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from evaluations.views import home
-from people.views import logout_confirm, invite_user, register_with_token, config
-from people.views import resend_invitation, cancel_invitation
+from people.views import (
+    logout_confirm, invite_user, register_with_token, config,
+    resend_invitation, cancel_invitation,
+    download_sample_excel, import_users_excel,
+)
 
 
 urlpatterns = [
@@ -11,6 +14,8 @@ urlpatterns = [
     path("accounts/login/", auth_views.LoginView.as_view(), name="login"),
     path("accounts/logout/", logout_confirm, name="logout"),
     path("accounts/invite/", invite_user, name="invite_user"),
+    path("accounts/invite/sample-excel/", download_sample_excel, name="download_sample_excel"),
+    path("accounts/invite/import-excel/", import_users_excel, name="import_users_excel"),
     path("config/", config, name="config"),
     path("accounts/register/", register_with_token, name="register"),
     path("", home, name="home"),

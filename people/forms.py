@@ -6,9 +6,22 @@ from .models import Invitation, Department, Role, Employee
 
 
 class InviteForm(forms.Form):
+    first_name = forms.CharField(
+        label="Nombre (para interno)",
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Obligatorio si no hay email"}),
+    )
+    last_name = forms.CharField(
+        label="Apellido (para interno)",
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Obligatorio si no hay email"}),
+    )
     email = forms.EmailField(
-        label="Correo electrónico",
-        widget=forms.EmailInput(attrs={"class": "form-control"}),
+        label="Correo electrónico (opcional)",
+        required=False,
+        widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "Dejar vacío para usuario interno (sin acceso)"}),
     )
     department = forms.ModelChoiceField(
         queryset=Department.objects.all().order_by("name"),
@@ -42,6 +55,15 @@ class InviteForm(forms.Form):
             self.fields["role"].queryset = Role.objects.filter(
                 department=self.initial["department"]
             ).order_by("name")
+
+    def clean(self):
+        data = super().clean()
+        email = (data.get("email") or "").strip()
+        first_name = (data.get("first_name") or "").strip()
+        last_name = (data.get("last_name") or "").strip()
+        if not email and (not first_name or not last_name):
+            raise forms.ValidationError("Si no indicas email (usuario interno), nombre y apellido son obligatorios.")
+        return data
 
 
 class RegisterForm(UserCreationForm):

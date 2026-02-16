@@ -280,6 +280,8 @@ def nine_box_dashboard(request):
             "items": grid.get((qual, quant), []),
         })
 
+    editable_ids = set(managed_employees_qs(request.user).values_list("id", flat=True))
+
     return render(request, "evaluations/nine_box.html", {
         "cycle": cycle,
         "cells": cells,
@@ -287,4 +289,5 @@ def nine_box_dashboard(request):
         "roles": Role.objects.all(),
         "dept_id": dept_id or "",
         "role_id": role_id or "",
+        "editable_employee_ids": editable_ids,
     })

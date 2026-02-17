@@ -1,38 +1,85 @@
 {% extends "base.html" %}
-{% block title %}Cuantitativo · {{ competency.name }} · TalentMap{% endblock %}
+{% block title %}Cuantitativo (metas) · {{ employee }} · TalentMap{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-  <div class="mb-4">
-    <h4 class="mb-1">Cuantitativo · {{ competency.name }}</h4>
-    <div class="text-muted">{{ employee }} · {{ cycle.name }} · Requerido hasta nivel {{ required_level }}</div>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="mb-1">Cuantitativo · Metas</h3>
+      <div class="text-muted">{{ employee }} · {{ cycle.name }}</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Volver</a>
   </div>
 
-  <form method="post" class="card p-4">
-    {% csrf_token %}
-
-    {% for lvl in levels %}
-      <div class="mb-4">
-        <div class="fw-semibold">Nivel {{ lvl.level }}{% if lvl.title %} · {{ lvl.title }}{% endif %}</div>
-        <div class="text-muted small mb-2">Marca los indicadores cumplidos</div>
-
-        {% for ind in lvl.indicators.all %}
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox"
-                   name="ind_{{ ind.id }}" id="ind_{{ ind.id }}"
-                   {% if ind.id in met_set %}checked{% endif %}>
-            <label class="form-check-label" for="ind_{{ ind.id }}">{{ ind.text }}</label>
-          </div>
-        {% empty %}
-          <div class="text-muted small">Sin indicadores en este nivel.</div>
-        {% endfor %}
-      </div>
-      {% if not forloop.last %}<hr/>{% endif %}
-    {% endfor %}
-
-    <div class="d-flex gap-2 mt-4">
-      <button type="submit" class="btn btn-primary">Guardar</button>
-      <a class="btn btn-outline-secondary" href="{% url 'nine_box' %}">Volver al mapa</a>
+  <div class="card p-4">
+    <div class="alert alert-info mb-4">
+      Los pesos deben sumar exactamente <strong>100%</strong>.
     </div>
-  </form>
+
+    <form method="post">
+      {% csrf_token %}
+      {{ formset.management_form }}
+
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead class="text-muted small">
+            <tr>
+              <th>Título</th>
+              <th>Descripción</th>
+              <th style="width: 140px;">Peso %</th>
+              <th style="width: 160px;">Completado %</th>
+              <th style="width: 120px;">Borrar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in formset %}
+              <tr>
+                <td>
+                  {{ f.title }}
+                  {% if f.title.errors %}<div class="text-danger small">{{ f.title.errors }}</div>{% endif %}
+                </td>
+                <td>
+                  {{ f.description }}
+                  {% if f.description.errors %}<div class="text-danger small">{{ f.description.errors }}</div>{% endif %}
+                </td>
+                <td>
+                  {{ f.weight_percent }}
+                  {% if f.weight_percent.errors %}<div class="text-danger small">{{ f.weight_percent.errors }}</div>{% endif %}
+                </td>
+                <td>
+                  {{ f.completion_percent }}
+                  {% if f.completion_percent.errors %}<div class="text-danger small">{{ f.completion_percent.errors }}</div>{% endif %}
+                </td>
+                <td>
+                  {% if f.instance.pk %}
+                    <div class="form-check">
+                      {{ f.DELETE }}
+                      <label class="form-check-label">Eliminar</label>
+                    </div>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if formset.non_form_errors %}
+        <div class="text-danger small">{{ formset.non_form_errors }}</div>
+      {% endif %}
+
+      <div class="text-muted small mb-3">
+        La última fila permite añadir una nueva meta (déjala en blanco si no quieres añadir).
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Cancelar</a>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}

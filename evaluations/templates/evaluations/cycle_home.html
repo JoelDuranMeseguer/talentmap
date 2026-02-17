@@ -1,61 +1,61 @@
 {% extends "base.html" %}
 {% block title %}Panel · {{ cycle.name }} · TalentMap{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-  <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h3 class="mb-1">Panel</h3>
-      <div class="text-muted">Ciclo actual: <strong>{{ cycle.name }}</strong></div>
+      <div class="text-muted">{{ cycle.name }}</div>
     </div>
-    {% if all_cycles|length > 1 %}
-    <form method="post" action="{% url 'set_cycle' %}" class="d-flex align-items-center gap-2">
-      {% csrf_token %}
-      <label class="text-muted small mb-0">Ver otro ciclo:</label>
-      <select name="cycle_id" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
-        {% for c in all_cycles %}
-          <option value="{{ c.id }}" {% if c.id == cycle.id %}selected{% endif %}>{{ c.name }}</option>
-        {% endfor %}
-      </select>
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-    </form>
-    {% endif %}
+    <a class="btn btn-outline-secondary" href="{% url 'logout' %}">Salir</a>
   </div>
 
   <div class="row g-3">
-    <div class="col-md-6">
+    <div class="col-lg-6">
       <div class="card p-4">
-        <h5 class="mb-2">Mi evaluación</h5>
+        <h5 class="mb-3">Mi evaluación</h5>
+
         {% if my_score %}
-          <div class="text-muted">
-            Cualitativo: <strong>{{ my_score.qualitative_score }}</strong> ·
-            Cuantitativo: <strong>{{ my_score.quantitative_score }}</strong><br/>
-            9-Box: <strong>{{ my_score.box_label }}</strong>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="badge text-bg-primary">Cualitativo: {{ my_score.qualitative_score }}</span>
+            <span class="badge text-bg-secondary">Cuantitativo: {{ my_score.quantitative_score }}</span>
+            <span class="badge text-bg-dark">9-Box: {{ my_score.box_label }}</span>
           </div>
         {% else %}
-          <div class="text-muted">Aún no hay score calculado para ti en este ciclo.</div>
+          <p class="text-muted mb-0">Aún no hay score calculado para ti en este ciclo.</p>
         {% endif %}
+
         {% if can_edit_me %}
-          <div class="d-flex gap-2 mt-3">
-            <a class="btn btn-primary" href="{% url 'edit_qualitative' me.id %}">Editar cualitativo</a>
-            <a class="btn btn-outline-primary" href="{% url 'competency_picker' me.id %}">Editar cuantitativo</a>
+          <hr class="my-4">
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-primary" href="{% url 'edit_quantitative' employee_id=me.id %}">
+              Editar cuantitativo (metas)
+            </a>
+            <a class="btn btn-outline-primary" href="{% url 'competency_picker' employee_id=me.id %}">
+              Editar cualitativo (competencias)
+            </a>
           </div>
         {% else %}
-          <p class="text-muted small mt-2 mb-0">Solo tu superior o administrador pueden editar tu evaluación.</p>
+          <div class="mt-3 text-muted small">Solo tu superior o administración pueden editar tu evaluación.</div>
         {% endif %}
       </div>
     </div>
 
-    <div class="col-md-6">
+    <div class="col-lg-6">
       <div class="card p-4">
-        <h5 class="mb-2">Equipo / HR</h5>
+        <h5 class="mb-3">Equipo / HR</h5>
+
         {% if is_manager or is_hr %}
-          <div class="text-muted">Gestiona evaluaciones y consulta el mapa.</div>
-          <div class="d-flex gap-2 mt-3 flex-wrap">
+          <p class="text-muted">Gestiona evaluaciones del equipo.</p>
+          <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-primary" href="{% url 'team_overview' %}">Mi equipo</a>
-            <a class="btn btn-outline-primary" href="{% url 'nine_box' %}">Mapa de Talento</a>
+            {% if is_hr %}
+              <a class="btn btn-outline-primary" href="{% url 'nine_box' %}">Mapa 9-Box</a>
+            {% endif %}
           </div>
         {% else %}
-          <div class="text-muted">No tienes permisos de manager/HR.</div>
+          <p class="text-muted mb-0">No tienes permisos de manager/HR.</p>
         {% endif %}
       </div>
     </div>

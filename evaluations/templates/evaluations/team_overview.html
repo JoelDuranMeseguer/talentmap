@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% load eval_extras %}
 {% block title %}Mi equipo · {{ cycle.name }} · TalentMap{% endblock %}
+
 {% block content %}
-<div class="container py-4">
+<div class="container">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h3 class="mb-1">Mi equipo</h3>
@@ -10,52 +11,56 @@
     </div>
     <div class="d-flex gap-2">
       <a class="btn btn-outline-secondary" href="{% url 'eval_home' %}">Volver</a>
-      <a class="btn btn-outline-primary" href="{% url 'nine_box' %}">9-Box</a>
+      {% if is_hr %}
+        <a class="btn btn-outline-primary" href="{% url 'nine_box' %}">9-Box</a>
+      {% endif %}
     </div>
   </div>
 
-  <div class="card p-4">
+  <div class="card p-3">
     <div class="table-responsive">
-      <table class="table align-middle">
+      <table class="table align-middle mb-0">
         <thead>
-          <tr>
+          <tr class="text-muted small">
             <th>Empleado</th>
             <th>Rol</th>
             <th>Departamento</th>
             <th>Score</th>
-            <th style="min-width: 240px;">Acciones</th>
+            <th class="text-end">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for e in employees %}
             {% with s=scores|get:e.id %}
             <tr>
-              <td>{{ e }}</td>
+              <td class="fw-semibold">{{ e }}</td>
               <td>{{ e.role.name }}</td>
               <td>{{ e.department.name }}</td>
               <td>
                 {% if s %}
-                  Qlt {{ s.qualitative_score }} · Qnt {{ s.quantitative_score }}<br/>
-                  <span class="badge bg-secondary">{{ s.box_label }}</span>
+                  <span class="badge text-bg-primary">Qlt {{ s.qualitative_score }}</span>
+                  <span class="badge text-bg-secondary">Qnt {{ s.quantitative_score }}</span>
+                  <span class="badge text-bg-dark">{{ s.box_label }}</span>
                 {% else %}
                   <span class="text-muted">Sin score</span>
                 {% endif %}
               </td>
-              <td>
-                <div class="d-flex gap-2 align-items-center flex-wrap">
-                  <a class="btn btn-sm btn-primary" href="{% url 'edit_qualitative' e.id %}">Cualitativo</a>
-                  <a class="btn btn-sm btn-outline-primary" href="{% url 'competency_picker' e.id %}">Cuantitativo</a>
-                  {% if is_hr %}
-                  <form method="post" action="{% url 'delete_employee' e.id %}" class="m-0 d-inline" onsubmit="return confirm('¿Desactivar a {{ e }}? No podrá acceder al sistema.');">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'team_overview' %}">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
-                  </form>
-                  {% endif %}
+              <td class="text-end">
+                <div class="d-inline-flex gap-2">
+                  <a class="btn btn-sm btn-outline-secondary"
+                     href="{% url 'edit_quantitative' employee_id=e.id %}">
+                    Cuantitativo (metas)
+                  </a>
+                  <a class="btn btn-sm btn-outline-secondary"
+                     href="{% url 'competency_picker' employee_id=e.id %}">
+                    Cualitativo (competencias)
+                  </a>
                 </div>
               </td>
             </tr>
             {% endwith %}
+          {% empty %}
+            <tr><td colspan="5" class="text-muted">No hay empleados.</td></tr>
           {% endfor %}
         </tbody>
       </table>

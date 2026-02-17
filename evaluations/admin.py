@@ -1,7 +1,8 @@
 from django.contrib import admin
-from .models import EvaluationCycle, QualitativeGoal, QuantitativeIndicatorAssessment, EmployeeCycleScore
+
+from .models import EvaluationCycle, QuantitativeGoal, QualitativeIndicatorAssessment, EmployeeCycleScore
 
 admin.site.register(EvaluationCycle)
-admin.site.register(QualitativeGoal)
-admin.site.register(QuantitativeIndicatorAssessment)
+admin.site.register(QuantitativeGoal)
+admin.site.register(QualitativeIndicatorAssessment)
 admin.site.register(EmployeeCycleScore)

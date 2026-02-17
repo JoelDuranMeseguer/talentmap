@@ -1,29 +1,33 @@
 {% extends "base.html" %}
 {% block title %}Competencias · {{ employee }} · TalentMap{% endblock %}
+
 {% block content %}
-<div class="container py-4">
+<div class="container">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h3 class="mb-1">Competencias</h3>
+      <h3 class="mb-1">Cualitativo · Competencias</h3>
       <div class="text-muted">{{ employee }} · {{ cycle.name }}</div>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'eval_home' %}">Volver</a>
+    <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Volver</a>
   </div>
 
   <div class="card p-4">
-    <div class="text-muted mb-3">Elige una competencia para evaluar:</div>
-    <div class="list-group list-group-flush">
+    <p class="text-muted mb-3">Elige una competencia para evaluar (por niveles y comportamientos).</p>
+
+    <div class="list-group">
       {% for r in reqs %}
-        <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3"
-           href="{% url 'edit_quantitative' employee.id r.competency.id %}">
+        <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+           href="{% url 'edit_qualitative' employee_id=employee.id competency_id=r.competency.id %}">
           <div>
             <div class="fw-semibold">{{ r.competency.name }}</div>
             <div class="text-muted small">Requerido hasta nivel {{ r.required_level }}</div>
           </div>
-          <span class="badge bg-secondary">Abrir</span>
+          <span class="badge text-bg-light text-dark border">Abrir</span>
         </a>
       {% empty %}
-        <div class="text-muted">Este rol no tiene perfil ideal configurado (RoleCompetencyRequirement).</div>
+        <div class="text-muted">
+          Este rol no tiene perfil ideal configurado (RoleCompetencyRequirement).
+        </div>
       {% endfor %}
     </div>
   </div>

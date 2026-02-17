@@ -29,7 +29,7 @@
         {% if can_edit_me %}
           <hr class="my-4">
           <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-outline-primary" href="{% url 'edit_quantitative' employee_id=me.id %}">
+            <a class="btn btn-outline-primary" href="{% url 'edit_quantitative' me.id %}">
               Editar cuantitativo (metas)
             </a>
             <a class="btn btn-outline-primary" href="{% url 'competency_picker' employee_id=me.id %}">

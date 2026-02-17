@@ -1,30 +1,34 @@
 from django.urls import path
 
-from .views import (
-    cycle_home,
-    set_cycle,
-    nine_box_dashboard,
-    team_overview,
-    edit_quantitative,
-    competency_picker,
-    edit_qualitative,
-)
+from . import views
 
 urlpatterns = [
-    path("", cycle_home, name="eval_home"),
-    path("set-cycle/", set_cycle, name="set_cycle"),
+    path("", views.cycle_home, name="eval_home"),
+    path("set-cycle/", views.set_cycle, name="set_cycle"),
+    path("nine-box/", views.nine_box_dashboard, name="nine_box"),
+    path("team/", views.team_overview, name="team_overview"),
 
-    path("team/", team_overview, name="team_overview"),
-    path("nine-box/", nine_box_dashboard, name="nine_box"),  # admin only
-
-    # CUANTITATIVO (metas)
-    path("employee/<int:employee_id>/quantitative/", edit_quantitative, name="edit_quantitative"),
-
-    # CUALITATIVO (competencias)
-    path("employee/<int:employee_id>/competencies/", competency_picker, name="competency_picker"),
+    # Entry-point cualitativo (1 arg) -> selector de competencias.
+    # Mantiene compatibilidad con templates que hacen:
+    #   {% url 'edit_qualitative' employee_id %}
+    path(
+        "employee/<int:employee_id>/qualitative/",
+        views.competency_picker,
+        name="edit_qualitative",
+    ),
     path(
         "employee/<int:employee_id>/competency/<int:competency_id>/qualitative/",
-        edit_qualitative,
+        views.edit_qualitative,
         name="edit_qualitative",
+    ),
+    path(
+        "employee/<int:employee_id>/competencies/",
+        views.competency_picker,
+        name="competency_picker",
+    ),
+    path(
+        "employee/<int:employee_id>/quantitative/",
+        views.edit_quantitative,
+        name="edit_quantitative",
     ),
 ]

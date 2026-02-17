@@ -11,6 +11,9 @@
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Volver</a>
   </div>
+  {% if missing_level %}
+  <p><strong>⚠ Configuración incompleta:</strong> el nivel {{ missing_level }} no tiene comportamientos configurados. Contacta con HR/Admin.</p>
+  {% endif %}
 
   <div class="card p-4 mb-3">
     <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -62,11 +65,10 @@
                              {% elif l.locked_initial %}text-bg-light text-dark border
                              {% else %}text-bg-light text-dark border{% endif %}"
                       data-level="{{ lvl }}">
-                  {% if lvl <= achieved_level %}
-                    Completado
-                  {% elif lvl == current_level %}
-                    En progreso
-                  {% else %}
+                    {% if l.missing_config %} Sin configurar
+                    {% elif lvl <= achieved_level %} Completado
+                    {% elif lvl == current_level %} En progreso
+                    {% else %}
                     {% if l.locked_initial %}Bloqueado 🔒{% else %}Pendiente{% endif %}
                   {% endif %}
                 </span>
@@ -80,7 +82,11 @@
             <div class="accordion-body">
               {% if l.locked_initial %}
                 <div class="alert alert-light border mb-0">
-                  Completa el nivel anterior para desbloquear este nivel.
+                  {% if l.missing_config %}
+                    Este nivel no tiene comportamientos configurados. Contacta con HR/Admin.
+                  {% else %}
+                    Completa el nivel anterior para desbloquear este nivel.
+                  {% endif %}
                 </div>
               {% else %}
                 <div class="vstack gap-2">

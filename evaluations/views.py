@@ -16,6 +16,8 @@ from evaluations.models import (
 from evaluations.services.scoring import BOXES, PASS_RATING, recompute_cycle_scores, terciles_for_scores
 from people.models import Department, Employee, Role
 from people.services.access import is_hr, managed_employees_qs
+from django.contrib import messages
+
 
 SESSION_CYCLE_KEY = "eval_current_cycle_id"
 from django.shortcuts import redirect
@@ -182,11 +184,39 @@ def competency_picker(request, employee_id):
     return render(request, "evaluations/competency_picker.html", {"cycle": cycle, "employee": emp, "reqs": reqs})
 
 
+def _qual_progress(levels, rating_map, required_level):
+    """
+    Devuelve (achieved_level, unlocked_max_level, missing_level)
+    - achieved_level: último nivel completado (con indicadores).
+    - unlocked_max_level: primer nivel NO completado (editable) o nivel con config incompleta.
+    - missing_level: número de nivel sin indicadores (si existe).
+    """
+    achieved = 0
+    unlocked = 1
+    missing_level = None
+
+    for lvl in levels:
+        inds = list(lvl.indicators.all())
+        if not inds:
+            missing_level = lvl.level
+            unlocked = lvl.level
+            break
+
+        passed = sum(1 for ind in inds if rating_map.get(ind.id, 1) >= PASS_RATING)
+        if passed == len(inds):
+            achieved = lvl.level
+            unlocked = min(lvl.level + 1, required_level)
+        else:
+            unlocked = lvl.level
+            break
+
+    unlocked = max(1, min(unlocked, required_level))
+    return achieved, unlocked, missing_level
+
+
 @login_required
 def edit_qualitative(request, employee_id, competency_id):
-    """
-    CUALITATIVO = competencias→niveles→comportamientos con escala Nunca/Casi nunca/Casi siempre/Siempre.
-    """
+    """ CUALITATIVO = competencias→niveles→comportamientos con escala Nunca/Casi nunca/Casi siempre/Siempre. """
     cycle = get_current_cycle(request)
     if not cycle:
         return redirect("/admin/")
@@ -216,17 +246,24 @@ def edit_qualitative(request, employee_id, competency_id):
     )
     rating_map = {a.indicator_id: int(a.rating) for a in existing}
 
+    achieved_level, unlocked_max_level, missing_level = _qual_progress(levels, rating_map, required_level)
+    current_level = unlocked_max_level
+
     if request.method == "POST":
         with transaction.atomic():
             for lvl in levels:
+                # Enforce server-side locking: no aceptar niveles bloqueados.
+                if lvl.level > unlocked_max_level:
+                    continue
+
                 for ind in lvl.indicators.all():
                     raw = request.POST.get(f"ind_{ind.id}")
                     try:
                         rating = int(raw) if raw else 1
                     except ValueError:
                         rating = 1
-
                     rating = max(1, min(4, rating))
+
                     QualitativeIndicatorAssessment.objects.update_or_create(
                         employee=emp,
                         cycle=cycle,
@@ -235,23 +272,15 @@ def edit_qualitative(request, employee_id, competency_id):
                     )
 
         _recompute_company(cycle)
-        return redirect("competency_picker", employee_id=emp.id)
+        messages.success(request, "Cualitativo guardado.")
+        return redirect("edit_qualitative", employee_id=emp.id, competency_id=comp.id)
 
-    # Construimos estructura para template (visual + stats)
+    # GET render
     levels_ctx = []
-    achieved_level = 0
     for lvl in levels:
         inds = list(lvl.indicators.all())
-        passed = sum(1 for ind in inds if rating_map.get(ind.id, 1) >= PASS_RATING)
         total = len(inds)
-
-        # regla secuencial: si falla un nivel, no subes más
-        if total == 0 or passed == total:
-            achieved_level = max(achieved_level, lvl.level)
-        else:
-            # cortamos aquí (los siguientes niveles quedan "bloqueados" a efectos de nivel)
-            # pero igualmente los mostramos para que puedan evaluarse.
-            pass
+        passed = sum(1 for ind in inds if rating_map.get(ind.id, 1) >= PASS_RATING)
 
         levels_ctx.append(
             {
@@ -259,36 +288,10 @@ def edit_qualitative(request, employee_id, competency_id):
                 "indicators": inds,
                 "passed": passed,
                 "total": total,
+                "missing_config": (total == 0),
+                "locked_initial": (lvl.level > unlocked_max_level),
             }
         )
-
-    # unlocked_max_level: el primer nivel NO completado (ese nivel sí se puede editar),
-    # y todo lo que esté por encima queda bloqueado.
-    unlocked_max_level = 1
-    achieved_level = 0
-
-    for item in levels_ctx:
-        lvl_num = item["level"].level
-        total = item["total"]
-        passed = item["passed"]
-
-        is_completed = (total == 0) or (passed == total)
-        if is_completed:
-            achieved_level = lvl_num
-            unlocked_max_level = min(lvl_num + 1, required_level)
-        else:
-            unlocked_max_level = lvl_num
-            break
-
-    # si no hay niveles, por seguridad
-    unlocked_max_level = max(1, min(unlocked_max_level, required_level))
-
-    current_level = unlocked_max_level 
-
-    # Marca qué niveles están bloqueados inicialmente (sin lógica en template)
-    for item in levels_ctx:
-        item["locked_initial"] = item["level"].level > unlocked_max_level
-
 
     return render(
         request,
@@ -303,9 +306,11 @@ def edit_qualitative(request, employee_id, competency_id):
             "achieved_level": achieved_level,
             "current_level": current_level,
             "unlocked_max_level": unlocked_max_level,
+            "missing_level": missing_level,
             "PASS_RATING": PASS_RATING,
         },
     )
+
 
 
 @login_required

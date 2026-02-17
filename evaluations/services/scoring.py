@@ -45,8 +45,9 @@ def _achieved_level_for_competency(employee, cycle, competency: Competency) -> i
     for lvl in levels:
         inds = list(lvl.indicators.all())
         if not inds:
-            achieved = max(achieved, lvl.level)
-            continue
+            # Nivel sin comportamientos = configuración incompleta.
+            # No lo contamos como "logrado" y detenemos la progresión secuencial.
+            break
 
         ok = QualitativeIndicatorAssessment.objects.filter(
             employee=employee,

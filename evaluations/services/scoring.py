@@ -53,6 +53,7 @@ def _achieved_level_for_competency(employee, cycle, competency: Competency) -> i
             employee=employee,
             cycle=cycle,
             indicator__in=inds,
+            assessment_type=QualitativeIndicatorAssessment.AssessmentType.MANAGER,
             rating__gte=PASS_RATING,
         ).count()
 

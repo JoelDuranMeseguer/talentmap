@@ -9,7 +9,11 @@
       <h3 class="mb-1">Cualitativo · {{ competency.name }}</h3>
       <div class="text-muted">{{ employee }} · {{ cycle.name }} · Requerido hasta nivel {{ required_level }}</div>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Volver</a>
+    {% if is_self_assessment %}
+      <a class="btn btn-outline-secondary" href="{% url 'self_competency_picker' %}">Volver</a>
+    {% else %}
+      <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Volver</a>
+    {% endif %}
   </div>
   {% if missing_level %}
   <p><strong>⚠ Configuración incompleta:</strong> el nivel {{ missing_level }} no tiene comportamientos configurados. Contacta con HR/Admin.</p>
@@ -93,7 +97,14 @@
                   {% for ind in l.indicators %}
                     {% with current=rating_map|get:ind.id|default:1 %}
                     <div class="d-flex flex-column flex-md-row justify-content-between gap-2 py-2 border-bottom">
-                      <div class="me-3">{{ ind.text }}</div>
+                      <div class="me-3">
+                        <div>{{ ind.text }}</div>
+                        {% if not is_self_assessment and self_rating_map|get:ind.id %}
+                          <div class="text-muted small mt-1">
+                            Autoevaluación: <strong>{{ self_rating_map|get:ind.id }}/4</strong>
+                          </div>
+                        {% endif %}
+                      </div>
 
                       <div class="btn-group btn-group-sm" role="group" aria-label="rating">
                         <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
@@ -130,7 +141,11 @@
 
     <div class="d-flex gap-2 mt-3">
       <button class="btn btn-primary" type="submit">Guardar</button>
-      <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Cancelar</a>
+      {% if is_self_assessment %}
+        <a class="btn btn-outline-secondary" href="{% url 'self_competency_picker' %}">Cancelar</a>
+      {% else %}
+        <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Cancelar</a>
+      {% endif %}
     </div>
   </form>
 </div>

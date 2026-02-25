@@ -7,21 +7,21 @@ from .models import Invitation, Department, Role, Employee
 
 class InviteForm(forms.Form):
     first_name = forms.CharField(
-        label="Nombre (para interno)",
+        label="Nombre",
         max_length=150,
-        required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Obligatorio si no hay email"}),
+        required=True,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Nombre"}),
     )
     last_name = forms.CharField(
-        label="Apellido (para interno)",
+        label="Apellido",
         max_length=150,
-        required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Obligatorio si no hay email"}),
+        required=True,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Apellido"}),
     )
     email = forms.EmailField(
-        label="Correo electrónico (opcional)",
-        required=False,
-        widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "Dejar vacío para usuario interno (sin acceso)"}),
+        label="Correo electrónico",
+        required=True,
+        widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "nombre@empresa.com"}),
     )
     department = forms.ModelChoiceField(
         queryset=Department.objects.all().order_by("name"),
@@ -58,11 +58,8 @@ class InviteForm(forms.Form):
 
     def clean(self):
         data = super().clean()
-        email = (data.get("email") or "").strip()
-        first_name = (data.get("first_name") or "").strip()
-        last_name = (data.get("last_name") or "").strip()
-        if not email and (not first_name or not last_name):
-            raise forms.ValidationError("Si no indicas email (usuario interno), nombre y apellido son obligatorios.")
+        email = (data.get("email") or "").strip().lower()
+        data["email"] = email
         return data
 
 
@@ -82,6 +79,15 @@ class RegisterForm(UserCreationForm):
                 widget = self.fields[field].widget
                 if "class" not in widget.attrs:
                     widget.attrs["class"] = "form-control"
+
+    def clean_username(self):
+        username = self.cleaned_data.get("username")
+        qs = User.objects.filter(username__iexact=username)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("Este nombre de usuario ya existe.")
+        return username
 
 
 class DepartmentForm(forms.ModelForm):

@@ -7,6 +7,12 @@ urlpatterns = [
     path("set-cycle/", views.set_cycle, name="set_cycle"),
     path("nine-box/", views.nine_box_dashboard, name="nine_box"),
     path("team/", views.team_overview, name="team_overview"),
+    path("self/competencies/", views.self_competency_picker, name="self_competency_picker"),
+    path(
+        "self/competency/<int:competency_id>/qualitative/",
+        views.self_edit_qualitative,
+        name="self_edit_qualitative",
+    ),
 
     # Entry-point cualitativo (1 arg) -> selector de competencias.
     # Mantiene compatibilidad con templates que hacen:

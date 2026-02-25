@@ -242,9 +242,19 @@ def edit_qualitative(request, employee_id, competency_id):
         indicator_ids.extend([i.id for i in lvl.indicators.all()])
 
     existing = QualitativeIndicatorAssessment.objects.filter(
-        employee=emp, cycle=cycle, indicator_id__in=indicator_ids
+        employee=emp,
+        cycle=cycle,
+        indicator_id__in=indicator_ids,
+        assessment_type=QualitativeIndicatorAssessment.AssessmentType.MANAGER,
     )
     rating_map = {a.indicator_id: int(a.rating) for a in existing}
+    self_existing = QualitativeIndicatorAssessment.objects.filter(
+        employee=emp,
+        cycle=cycle,
+        indicator_id__in=indicator_ids,
+        assessment_type=QualitativeIndicatorAssessment.AssessmentType.SELF,
+    )
+    self_rating_map = {a.indicator_id: int(a.rating) for a in self_existing}
 
     achieved_level, unlocked_max_level, missing_level = _qual_progress(levels, rating_map, required_level)
     current_level = unlocked_max_level
@@ -268,6 +278,7 @@ def edit_qualitative(request, employee_id, competency_id):
                         employee=emp,
                         cycle=cycle,
                         indicator=ind,
+                        assessment_type=QualitativeIndicatorAssessment.AssessmentType.MANAGER,
                         defaults={"rating": rating, "assessed_by": request.user},
                     )
 
@@ -303,11 +314,137 @@ def edit_qualitative(request, employee_id, competency_id):
             "required_level": required_level,
             "levels_ctx": levels_ctx,
             "rating_map": rating_map,
+            "self_rating_map": self_rating_map,
             "achieved_level": achieved_level,
             "current_level": current_level,
             "unlocked_max_level": unlocked_max_level,
             "missing_level": missing_level,
             "PASS_RATING": PASS_RATING,
+            "is_self_assessment": False,
+        },
+    )
+
+
+@login_required
+def self_competency_picker(request):
+    cycle = get_current_cycle(request)
+    if not cycle:
+        return redirect("/admin/")
+
+    try:
+        emp = request.user.employee
+    except Employee.DoesNotExist:
+        return render(request, "evaluations/no_employee.html", {"cycle": cycle})
+
+    reqs = (
+        RoleCompetencyRequirement.objects.filter(role=emp.role)
+        .select_related("competency")
+        .order_by("competency__name")
+    )
+    return render(
+        request,
+        "evaluations/competency_picker.html",
+        {
+            "cycle": cycle,
+            "employee": emp,
+            "reqs": reqs,
+            "is_self_assessment": True,
+        },
+    )
+
+
+@login_required
+def self_edit_qualitative(request, competency_id):
+    cycle = get_current_cycle(request)
+    if not cycle:
+        return redirect("/admin/")
+
+    try:
+        emp = request.user.employee
+    except Employee.DoesNotExist:
+        return render(request, "evaluations/no_employee.html", {"cycle": cycle})
+
+    comp = get_object_or_404(Competency, id=competency_id)
+    req = RoleCompetencyRequirement.objects.filter(role=emp.role, competency=comp).first()
+    required_level = int(req.required_level) if req else 1
+
+    levels = (
+        CompetencyLevel.objects.filter(competency=comp, level__lte=required_level)
+        .prefetch_related("indicators")
+        .order_by("level")
+    )
+    indicator_ids = []
+    for lvl in levels:
+        indicator_ids.extend([i.id for i in lvl.indicators.all()])
+
+    existing = QualitativeIndicatorAssessment.objects.filter(
+        employee=emp,
+        cycle=cycle,
+        indicator_id__in=indicator_ids,
+        assessment_type=QualitativeIndicatorAssessment.AssessmentType.SELF,
+    )
+    rating_map = {a.indicator_id: int(a.rating) for a in existing}
+
+    achieved_level, unlocked_max_level, missing_level = _qual_progress(levels, rating_map, required_level)
+    current_level = unlocked_max_level
+
+    if request.method == "POST":
+        with transaction.atomic():
+            for lvl in levels:
+                if lvl.level > unlocked_max_level:
+                    continue
+                for ind in lvl.indicators.all():
+                    raw = request.POST.get(f"ind_{ind.id}")
+                    try:
+                        rating = int(raw) if raw else 1
+                    except ValueError:
+                        rating = 1
+                    rating = max(1, min(4, rating))
+
+                    QualitativeIndicatorAssessment.objects.update_or_create(
+                        employee=emp,
+                        cycle=cycle,
+                        indicator=ind,
+                        assessment_type=QualitativeIndicatorAssessment.AssessmentType.SELF,
+                        defaults={"rating": rating, "assessed_by": request.user},
+                    )
+
+        messages.success(request, "Autoevaluación cualitativa guardada.")
+        return redirect("self_edit_qualitative", competency_id=comp.id)
+
+    levels_ctx = []
+    for lvl in levels:
+        inds = list(lvl.indicators.all())
+        total = len(inds)
+        passed = sum(1 for ind in inds if rating_map.get(ind.id, 1) >= PASS_RATING)
+        levels_ctx.append(
+            {
+                "level": lvl,
+                "indicators": inds,
+                "passed": passed,
+                "total": total,
+                "missing_config": (total == 0),
+                "locked_initial": (lvl.level > unlocked_max_level),
+            }
+        )
+
+    return render(
+        request,
+        "evaluations/edit_qualitative.html",
+        {
+            "cycle": cycle,
+            "employee": emp,
+            "competency": comp,
+            "required_level": required_level,
+            "levels_ctx": levels_ctx,
+            "rating_map": rating_map,
+            "self_rating_map": {},
+            "achieved_level": achieved_level,
+            "current_level": current_level,
+            "unlocked_max_level": unlocked_max_level,
+            "missing_level": missing_level,
+            "PASS_RATING": PASS_RATING,
+            "is_self_assessment": True,
         },
     )
 

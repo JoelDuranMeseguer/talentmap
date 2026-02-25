@@ -63,11 +63,16 @@ class QualitativeIndicatorAssessment(models.Model):
     """
     CUALITATIVO = competencias→niveles→comportamientos (indicadores) con escala 1..4.
     """
+    class AssessmentType(models.TextChoices):
+        MANAGER = "manager", "Manager"
+        SELF = "self", "Autoevaluación"
+
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="qual_assessments")
     cycle = models.ForeignKey(EvaluationCycle, on_delete=models.CASCADE, related_name="qual_assessments")
     indicator = models.ForeignKey(LevelIndicator, on_delete=models.CASCADE, related_name="assessments")
 
     rating = models.PositiveSmallIntegerField(choices=BehaviorRating.choices, default=BehaviorRating.NEVER)
+    assessment_type = models.CharField(max_length=16, choices=AssessmentType.choices, default=AssessmentType.MANAGER)
 
     assessed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -77,7 +82,7 @@ class QualitativeIndicatorAssessment(models.Model):
     assessed_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [("employee", "cycle", "indicator")]
+        unique_together = [("employee", "cycle", "indicator", "assessment_type")]
         indexes = [models.Index(fields=["employee", "cycle"])]
 
     def clean(self):

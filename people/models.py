@@ -45,6 +45,13 @@ class Invitation(models.Model):
         blank=True,
         related_name="invited_reports",
     )
+    employee = models.ForeignKey(
+        "Employee",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pending_invitations",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sent_invitations"
     )

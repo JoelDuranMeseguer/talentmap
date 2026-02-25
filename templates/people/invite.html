@@ -3,10 +3,10 @@
 
 {% block content %}
 <div class="container">
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div class="hero-card d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 p-4">
     <div>
       <h3 class="mb-0">Invitar usuarios</h3>
-      <div class="text-muted small">Gestiona invitaciones, importa desde Excel o crea usuarios internos (sin email).</div>
+      <div class="text-muted small">Gestiona invitaciones e importa colaboradores de forma segura desde Excel.</div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
       <a class="btn btn-outline-success" href="{% url 'download_sample_excel' %}">Descargar plantilla Excel</a>
@@ -15,9 +15,9 @@
   </div>
 
   <!-- Importar Excel -->
-  <div class="card p-4 shadow-sm border-0 mb-4">
+  <div class="card p-4 shadow-sm border-0 mb-4 rounded-4">
     <h5 class="mb-2">Importar desde Excel</h5>
-    <p class="text-muted small mb-3">Sube un archivo con columnas: nombre, apellido, email, departamento, rol, manager_email. El email es opcional (usuarios internos).</p>
+    <p class="text-muted small mb-3">Sube un archivo con columnas: nombre, apellido, email, departamento, rol y manager_email. El email es obligatorio.</p>
     <form method="post" action="{% url 'import_users_excel' %}" enctype="multipart/form-data" class="d-flex gap-2 align-items-end flex-wrap">
       {% csrf_token %}
       <div class="flex-grow-1">
@@ -30,7 +30,7 @@
   <div class="row g-3">
     <!-- NUEVA INVITACIÓN -->
     <div class="col-lg-5">
-      <div class="card p-4 shadow-sm border-0">
+      <div class="card p-4 shadow-sm border-0 rounded-4 h-100">
         <div class="d-flex justify-content-between align-items-start mb-3">
           <div>
             <h5 class="mb-1">Nueva invitación</h5>
@@ -46,7 +46,6 @@
             <div class="col">
               <label class="form-label" for="id_first_name">Nombre</label>
               {{ form.first_name }}
-              <div class="text-muted small">Para usuario interno (sin email)</div>
             </div>
             <div class="col">
               <label class="form-label" for="id_last_name">Apellido</label>
@@ -57,7 +56,6 @@
           <div class="mb-3">
             <label class="form-label" for="id_email">Correo electrónico</label>
             {{ form.email }}
-            <div class="text-muted small">Dejar vacío = usuario interno (sin acceso, solo para ranking)</div>
             {% if form.email.errors %}
               <div class="text-danger small mt-1">{{ form.email.errors }}</div>
             {% endif %}
@@ -81,7 +79,7 @@
 
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary">
-              Enviar invitación / Crear interno
+              Enviar invitación
             </button>
             {% if request.GET.department %}
               <a class="btn btn-outline-secondary" href="{% url 'invite_user' %}">Limpiar filtro</a>
@@ -93,7 +91,7 @@
 
     <!-- PENDIENTES -->
     <div class="col-lg-7">
-      <div class="card p-4 shadow-sm border-0">
+      <div class="card p-4 shadow-sm border-0 rounded-4 h-100">
         <div class="d-flex justify-content-between align-items-start mb-3">
           <div>
             <h5 class="mb-1">Invitaciones pendientes</h5>
@@ -171,31 +169,60 @@
 </div>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+  .hero-card {
+    background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+    border: 1px solid #e1e8f5;
+    border-radius: 1rem;
+  }
+</style>
+{% endblock %}
+
 {% block extra_js %}
 <script>
   // Actualiza roles por AJAX al cambiar departamento (sin perder datos del formulario)
   const deptSelect = document.getElementById('id_department');
   const roleSelect = document.getElementById('id_role');
   function loadRolesForDept() {
+    if (!deptSelect || !roleSelect) return;
     const deptId = deptSelect.value;
-    const prevRole = roleSelect.value;
+    const prevRole = roleSelect.getAttribute('data-selected') || roleSelect.value;
     roleSelect.innerHTML = '<option value="">Selecciona rol</option>';
     if (deptId) {
-      fetch('{% url "api_roles_by_department" 0 %}'.replace('0', deptId))
-        .then(r => r.json())
+      roleSelect.innerHTML = '<option value="">Cargando roles...</option>';
+      fetch('{% url "api_roles_by_department" 999999 %}'.replace('999999', deptId), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+        .then(r => {
+          if (!r.ok) throw new Error('status_' + r.status);
+          return r.json();
+        })
         .then(data => {
+          roleSelect.innerHTML = '<option value="">Selecciona rol</option>';
           data.roles.forEach(function(r) {
             const opt = document.createElement('option');
             opt.value = r.id;
             opt.textContent = r.name;
             roleSelect.appendChild(opt);
           });
-          if (prevRole) roleSelect.value = prevRole;
+          if (!data.roles.length) {
+            roleSelect.innerHTML = '<option value="">No hay roles en este departamento</option>';
+            return;
+          }
+          if (prevRole) {
+            roleSelect.value = prevRole;
+          }
         })
-        .catch(function() { roleSelect.innerHTML = '<option value="">Error al cargar</option>'; });
+        .catch(function() {
+          roleSelect.innerHTML = '<option value="">Error al cargar roles</option>';
+        });
+    } else {
+      roleSelect.innerHTML = '<option value="">Selecciona departamento primero</option>';
     }
   }
   if (deptSelect && roleSelect) {
+    roleSelect.setAttribute('data-selected', roleSelect.value);
     deptSelect.addEventListener('change', loadRolesForDept);
     if (deptSelect.value) loadRolesForDept();
   }

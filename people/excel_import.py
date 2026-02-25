@@ -95,7 +95,7 @@ def parse_excel_import(file):
 
     header = [str(c).strip().lower() if c else "" for c in rows[0]]
     idx = {}
-    required = ["nombre", "apellido", "departamento", "rol"]
+    required = ["nombre", "apellido", "email", "departamento", "rol"]
     for name in required:
         try:
             idx[name] = header.index(name)
@@ -112,6 +112,15 @@ def parse_excel_import(file):
         key = (r.department.name, r.name)
         roles_by_dept[key] = r
     emp_by_email = {e.user.email.lower(): e for e in Employee.objects.filter(active=True) if e.user.email}
+    all_excel_emails = set()
+    for row in rows[1:]:
+        if not row or idx["email"] < 0 or idx["email"] >= len(row):
+            continue
+        raw_email = str(row[idx["email"]] or "").strip().lower()
+        if raw_email:
+            all_excel_emails.add(raw_email)
+
+    excel_emails = set()
 
     result = []
     errors = []
@@ -139,6 +148,14 @@ def parse_excel_import(file):
         if not nombre or not apellido:
             errors.append(f"Fila {i}: nombre y apellido son obligatorios.")
             continue
+        if not email:
+            errors.append(f"Fila {i}: email es obligatorio.")
+            continue
+        email = email.lower()
+        if email in excel_emails:
+            errors.append(f"Fila {i}: email '{email}' está duplicado en el archivo.")
+            continue
+        excel_emails.add(email)
         if not dept_name:
             errors.append(f"Fila {i}: departamento es obligatorio.")
             continue
@@ -156,10 +173,17 @@ def parse_excel_import(file):
             continue
 
         manager = None
+        manager_email_pending = ""
         if manager_email:
             manager = emp_by_email.get(manager_email.lower())
-            if not manager:
-                errors.append(f"Fila {i}: manager_email '{manager_email}' no coincide con ningún empleado existente.")
+            if manager:
+                pass
+            elif manager_email in all_excel_emails:
+                manager_email_pending = manager_email
+            else:
+                errors.append(
+                    f"Fila {i}: manager_email '{manager_email}' no coincide con ningún empleado activo y no existe en este Excel."
+                )
                 continue
         elif manager_nombre and manager_apellido:
             result.append({
@@ -169,6 +193,7 @@ def parse_excel_import(file):
                 "department": dept,
                 "role": role,
                 "manager": None,
+                "manager_email_pending": "",
                 "manager_nombre": manager_nombre,
                 "manager_apellido": manager_apellido,
                 "row": i,
@@ -182,6 +207,7 @@ def parse_excel_import(file):
             "department": dept,
             "role": role,
             "manager": manager,
+            "manager_email_pending": manager_email_pending,
             "manager_nombre": "",
             "manager_apellido": "",
             "row": i,

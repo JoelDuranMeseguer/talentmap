@@ -117,32 +117,26 @@ def import_users_excel(request):
             messages.error(request, e)
         return redirect("invite_user")
 
-    batch_by_name = {}
-    emp_by_email = {e.user.email.lower(): e for e in Employee.objects.filter(active=True) if e.user.email}
+    batch_managers_by_email = {}
 
     def resolve_manager(r):
         if r.get("manager"):
             return r["manager"]
+        manager_email_pending = (r.get("manager_email_pending") or "").strip().lower()
+        if manager_email_pending:
+            return batch_managers_by_email.get(manager_email_pending)
         mn, ma = r.get("manager_nombre", "").strip(), r.get("manager_apellido", "").strip()
         if mn and ma:
-            return batch_by_name.get((mn, ma))
+            matches = [
+                manager for manager in batch_managers_by_email.values()
+                if manager.user.first_name == mn and manager.user.last_name == ma
+            ]
+            if len(matches) == 1:
+                return matches[0]
         return None
 
-    rows_internals = [r for r in rows if not r.get("email")]
-    rows_with_email = [r for r in rows if r.get("email")]
-
     created = 0
-    for r in rows_internals:
-        first_name = r["first_name"]
-        last_name = r["last_name"]
-        dept = r["department"]
-        role = r["role"]
-        manager = resolve_manager(r)
-        emp = _create_internal_employee(first_name, last_name, dept, role, manager, request.user)
-        batch_by_name[(first_name, last_name)] = emp
-        created += 1
-
-    for r in rows_with_email:
+    for r in rows:
         first_name = r["first_name"]
         last_name = r["last_name"]
         email = r["email"]
@@ -150,28 +144,35 @@ def import_users_excel(request):
         role = r["role"]
         manager = resolve_manager(r) or r.get("manager")
 
-        if email:
-            if User.objects.filter(email__iexact=email).exists() or Invitation.objects.filter(email__iexact=email, used_at__isnull=True, expires_at__gt=timezone.now()).exists():
-                messages.warning(request, f"Fila {r['row']}: {email} ya existe o tiene invitación pendiente.")
-                continue
-            inv = Invitation.objects.create(
-                email=email,
-                department=dept,
-                role=role,
-                manager=manager,
-                created_by=request.user,
-                expires_at=timezone.now() + timedelta(days=7),
+        if User.objects.filter(email__iexact=email).exists() or Invitation.objects.filter(email__iexact=email, used_at__isnull=True, expires_at__gt=timezone.now()).exists():
+            messages.warning(request, f"Fila {r['row']}: {email} ya existe o tiene invitación pendiente.")
+            continue
+
+        if r.get("manager_email_pending") and not manager:
+            messages.warning(
+                request,
+                f"Fila {r['row']}: el manager '{r['manager_email_pending']}' también viene en el Excel y todavía no existe como empleado activo."
+                " Se envía la invitación sin manager; podrás asignarlo luego en el perfil del colaborador.",
             )
-            site_url = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
-            register_url = f"{site_url}/accounts/register/?token={inv.token}"
-            send_mail(
-                subject="Invitación a TalentMap",
-                message=f"Hola,\n\nHas sido invitado a unirte a TalentMap.\n\nCrea tu cuenta aquí: {register_url}\n\nEste enlace expira en 7 días.",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
-            )
-            created += 1
+
+        inv = Invitation.objects.create(
+            email=email,
+            department=dept,
+            role=role,
+            manager=manager,
+            created_by=request.user,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+        site_url = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
+        register_url = f"{site_url}/accounts/register/?token={inv.token}"
+        send_mail(
+            subject="Invitación a TalentMap",
+            message=f"Hola,\n\nHas sido invitado a unirte a TalentMap.\n\nCrea tu cuenta aquí: {register_url}\n\nEste enlace expira en 7 días.",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        created += 1
 
     messages.success(request, f"Importados {created} usuarios.")
     return redirect("invite_user")
@@ -186,11 +187,15 @@ def invite_user(request):
         form = InviteForm(request.POST)
         if form.is_valid():
             email = (form.cleaned_data.get("email") or "").strip()
+            first_name = (form.cleaned_data.get("first_name") or "").strip()
+            last_name = (form.cleaned_data.get("last_name") or "").strip()
             department = form.cleaned_data["department"]
             role = form.cleaned_data["role"]
             manager = form.cleaned_data.get("manager")
 
-            if email:
+            if User.objects.filter(email__iexact=email).exists():
+                messages.error(request, f"Ya existe un usuario activo con el correo {email}.")
+            else:
                 pending = Invitation.objects.filter(email=email, used_at__isnull=True, expires_at__gt=timezone.now())
                 if pending.exists():
                     messages.error(request, f"Ya existe una invitación pendiente para {email}.")
@@ -207,19 +212,18 @@ def invite_user(request):
                     register_url = f"{site_url}/accounts/register/?token={inv.token}"
                     send_mail(
                         subject="Invitación a TalentMap",
-                        message=f"Hola,\n\nHas sido invitado a unirte a TalentMap.\n\nCrea tu cuenta aquí: {register_url}\n\nEste enlace expira en 7 días.",
+                        message=(
+                            f"Hola {first_name},\n\n"
+                            f"Has sido invitado a unirte a TalentMap como {role.name} en {department.name}.\n\n"
+                            f"Crea tu cuenta aquí: {register_url}\n\n"
+                            "Este enlace expira en 7 días."
+                        ),
                         from_email=settings.DEFAULT_FROM_EMAIL,
                         recipient_list=[email],
                         fail_silently=False,
                     )
                     messages.success(request, f"Invitación enviada a {email}.")
                     return redirect("invite_user")
-            else:
-                first_name = (form.cleaned_data.get("first_name") or "").strip() or "Usuario"
-                last_name = (form.cleaned_data.get("last_name") or "").strip() or "Interno"
-                emp = _create_internal_employee(first_name, last_name, department, role, manager, request.user)
-                messages.success(request, f"Usuario interno «{emp}» creado (sin acceso al sistema).")
-                return redirect("invite_user")
     else:
         dept_id = request.GET.get("department")
         initial = {}
@@ -368,4 +372,3 @@ def cancel_invitation(request, token):
 
     messages.success(request, f"Invitación cancelada: {inv.email}.")
     return redirect("invite_user")
-

@@ -13,7 +13,6 @@ from evaluations.models import (
     QualitativeIndicatorAssessment,
     QualitativeIndicatorSelfAssessment,
     QuantitativeGoal,
-    QuantitativeGoalSelfAssessment,
 )
 from evaluations.services.scoring import BOXES, PASS_RATING, recompute_cycle_scores, terciles_for_scores
 from people.models import Department, Employee, Role
@@ -82,13 +81,8 @@ def _cycle_or_admin_redirect(request):
     return None, redirect("/admin/")
 
 
-def _can_edit_employee(user, employee: Employee) -> bool:
-    me = getattr(user, "employee", None)
-    return (
-        is_hr(user)
-        or managed_employees_qs(user).filter(id=employee.id).exists()
-        or (me is not None and me.id == employee.id)
-    )
+def _can_manage_employee(user, employee: Employee) -> bool:
+    return is_hr(user) or managed_employees_qs(user).filter(id=employee.id).exists()
 
 
 @login_required
@@ -107,7 +101,7 @@ def cycle_home(request):
     hr = is_hr(request.user)
 
     can_edit_me = hr or (me.manager_id and me.manager.user_id == request.user.id)
-    can_self_evaluate = True
+    can_self_evaluate = hasattr(request.user, "employee")
 
     return render(
         request,
@@ -150,47 +144,11 @@ def edit_quantitative(request, employee_id):
 
     emp = get_object_or_404(Employee, id=employee_id)
 
-    allowed = _can_edit_employee(request.user, emp)
+    allowed = _can_manage_employee(request.user, emp)
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
     qs = QuantitativeGoal.objects.filter(employee=emp, cycle=cycle).order_by("id")
-    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
-
-    self_map = {
-        s.goal_id: s for s in QuantitativeGoalSelfAssessment.objects.filter(employee=emp, cycle=cycle, goal__in=qs)
-    }
-
-    if is_self_eval:
-        if request.method == "POST":
-            for goal in qs:
-                raw = request.POST.get(f"self_goal_{goal.id}", "").strip()
-                if raw == "":
-                    continue
-                try:
-                    value = max(0, min(100, float(raw)))
-                except ValueError:
-                    continue
-                QuantitativeGoalSelfAssessment.objects.update_or_create(
-                    employee=emp,
-                    cycle=cycle,
-                    goal=goal,
-                    defaults={"completion_percent": value},
-                )
-            messages.success(request, "Autoevaluación cuantitativa guardada.")
-            return redirect("edit_quantitative", employee_id=emp.id)
-
-        return render(
-            request,
-            "evaluations/edit_quantitative.html",
-            {
-                "cycle": cycle,
-                "employee": emp,
-                "is_self_eval": True,
-                "goals": qs,
-                "self_map": self_map,
-            },
-        )
 
     if request.method == "POST":
         formset = GoalFormSet(request.POST, queryset=qs)
@@ -216,7 +174,7 @@ def edit_quantitative(request, employee_id):
     return render(
         request,
         "evaluations/edit_quantitative.html",
-        {"cycle": cycle, "employee": emp, "formset": formset, "self_map": self_map, "is_self_eval": False},
+        {"cycle": cycle, "employee": emp, "formset": formset},
     )
 
 
@@ -230,11 +188,11 @@ def competency_picker(request, employee_id):
         return fallback
 
     emp = get_object_or_404(Employee, id=employee_id)
-    allowed = _can_edit_employee(request.user, emp)
+    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
+    allowed = _can_manage_employee(request.user, emp) or is_self_eval
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
-    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
     reqs = (
         RoleCompetencyRequirement.objects.filter(role=emp.role)
         .select_related("competency")
@@ -288,7 +246,8 @@ def edit_qualitative(request, employee_id, competency_id):
     emp = get_object_or_404(Employee, id=employee_id)
     comp = get_object_or_404(Competency, id=competency_id)
 
-    allowed = _can_edit_employee(request.user, emp)
+    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
+    allowed = _can_manage_employee(request.user, emp) or is_self_eval
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
@@ -305,7 +264,6 @@ def edit_qualitative(request, employee_id, competency_id):
     for lvl in levels:
         indicator_ids.extend([i.id for i in lvl.indicators.all()])
 
-    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
     model_cls = QualitativeIndicatorSelfAssessment if is_self_eval else QualitativeIndicatorAssessment
 
     existing = model_cls.objects.filter(employee=emp, cycle=cycle, indicator_id__in=indicator_ids)
@@ -313,10 +271,15 @@ def edit_qualitative(request, employee_id, competency_id):
 
     self_rating_map = {}
     if not is_self_eval:
+        official_ids = set(
+            QualitativeIndicatorAssessment.objects.filter(
+                employee=emp, cycle=cycle, indicator_id__in=indicator_ids
+            ).values_list("indicator_id", flat=True)
+        )
         self_existing = QualitativeIndicatorSelfAssessment.objects.filter(
             employee=emp, cycle=cycle, indicator_id__in=indicator_ids
         )
-        self_rating_map = {a.indicator_id: int(a.rating) for a in self_existing}
+        self_rating_map = {a.indicator_id: int(a.rating) for a in self_existing if a.indicator_id in official_ids}
 
     achieved_level, unlocked_max_level, missing_level = _qual_progress(levels, rating_map, required_level)
     current_level = unlocked_max_level

@@ -12,7 +12,6 @@ from evaluations.models import (
     QualitativeIndicatorAssessment,
     QualitativeIndicatorSelfAssessment,
     QuantitativeGoal,
-    QuantitativeGoalSelfAssessment,
 )
 from evaluations.services.scoring import recompute_cycle_scores
 from people.models import Department, Employee, Role
@@ -61,11 +60,6 @@ class SelfAssessmentTests(TestCase):
         self.client.logout()
         self.client.login(username="report", password="pass")
         self.client.post(
-            reverse("edit_quantitative", args=[self.report.id]),
-            {f"self_goal_{self.goal.id}": "95"},
-            follow=True,
-        )
-        self.client.post(
             reverse("edit_qualitative_competency", args=[self.report.id, self.comp.id]),
             {f"ind_{self.indicator.id}": "4"},
             follow=True,
@@ -76,16 +70,9 @@ class SelfAssessmentTests(TestCase):
 
         self.assertEqual(before.quantitative_score, after.quantitative_score)
         self.assertEqual(before.qualitative_score, after.qualitative_score)
-        self.assertTrue(QuantitativeGoalSelfAssessment.objects.filter(goal=self.goal, employee=self.report).exists())
         self.assertTrue(QualitativeIndicatorSelfAssessment.objects.filter(indicator=self.indicator, employee=self.report).exists())
 
     def test_manager_can_view_employee_self_assessment(self):
-        QuantitativeGoalSelfAssessment.objects.create(
-            employee=self.report,
-            cycle=self.cycle,
-            goal=self.goal,
-            completion_percent=Decimal("88"),
-        )
         QualitativeIndicatorSelfAssessment.objects.create(
             employee=self.report,
             cycle=self.cycle,
@@ -94,9 +81,18 @@ class SelfAssessmentTests(TestCase):
         )
 
         self.client.login(username="manager", password="pass")
-        quant_resp = self.client.get(reverse("edit_quantitative", args=[self.report.id]))
         qual_resp = self.client.get(reverse("edit_qualitative_competency", args=[self.report.id, self.comp.id]))
 
-        self.assertContains(quant_resp, "88")
         self.assertContains(qual_resp, "Auto:")
         self.assertContains(qual_resp, "Siempre")
+
+    def test_manager_cannot_view_self_assessment_without_official_evaluation(self):
+        QualitativeIndicatorSelfAssessment.objects.create(
+            employee=self.report,
+            cycle=self.cycle,
+            indicator=self.indicator,
+            rating=4,
+        )
+        self.client.login(username="manager", password="pass")
+        qual_resp = self.client.get(reverse("edit_qualitative_competency", args=[self.report.id, self.comp.id]))
+        self.assertContains(qual_resp, "Sin autoevaluación")

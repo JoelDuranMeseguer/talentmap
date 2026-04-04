@@ -6,7 +6,6 @@ from .models import (
     QualitativeIndicatorAssessment,
     QualitativeIndicatorSelfAssessment,
     QuantitativeGoal,
-    QuantitativeGoalSelfAssessment,
 )
 
 
@@ -33,12 +32,6 @@ class QualitativeIndicatorAssessmentAdmin(admin.ModelAdmin):
 class EmployeeCycleScoreAdmin(admin.ModelAdmin):
     list_display = ("employee", "cycle", "qualitative_score", "quantitative_score", "box_label", "updated_at")
     list_filter = ("cycle", "box_code")
-
-
-@admin.register(QuantitativeGoalSelfAssessment)
-class QuantitativeGoalSelfAssessmentAdmin(admin.ModelAdmin):
-    list_display = ("employee", "cycle", "goal", "completion_percent", "updated_at")
-    list_filter = ("cycle",)
 
 
 @admin.register(QualitativeIndicatorSelfAssessment)

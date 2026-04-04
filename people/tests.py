@@ -47,6 +47,17 @@ class InviteAndExcelImportTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("email", form.errors)
 
+    def test_invite_form_allows_internal_without_email(self):
+        form = InviteForm(data={
+            "first_name": "Interno",
+            "last_name": "Usuario",
+            "email": "",
+            "department": self.dept.id,
+            "role": self.role.id,
+            "create_internal": True,
+        })
+        self.assertTrue(form.is_valid())
+
     def test_parse_excel_allows_manager_email_from_same_file(self):
         excel = build_excel([
             ["Líder", "Equipo", "lider@example.com", "IT", "Developer", ""],

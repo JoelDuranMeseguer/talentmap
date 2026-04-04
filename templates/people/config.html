@@ -11,9 +11,13 @@
     <div class="col-lg-6">
       <div class="card p-4 mb-4">
         <h5 class="mb-3">Nuevo departamento</h5>
+        <p class="text-muted small">Los departamentos se usan para organizar roles y reportes.</p>
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="add_department" value="1">
+          {% if dept_form.non_field_errors %}
+            <div class="alert alert-danger py-2">{{ dept_form.non_field_errors }}</div>
+          {% endif %}
           <div class="mb-3">
             {{ dept_form.name }}
             {% if dept_form.name.errors %}<div class="text-danger small">{{ dept_form.name.errors }}</div>{% endif %}
@@ -37,6 +41,7 @@
     <div class="col-lg-6">
       <div class="card p-4 mb-4">
         <h5 class="mb-3">Nuevo rol</h5>
+        <p class="text-muted small">Cada rol debe pertenecer a un departamento.</p>
         <form id="add-role-form" method="post">
           {% csrf_token %}
           <input type="hidden" name="add_role" value="1">
@@ -97,10 +102,23 @@ document.getElementById('add-role-form').addEventListener('submit', function(e) 
       li.innerHTML = data.name + ' <span class="badge bg-secondary">' + data.department + '</span>';
       document.getElementById('roles-list').appendChild(li);
       form.querySelector('[name=name]').value = '';
+      errEl.classList.remove('text-danger');
+      errEl.classList.add('text-success');
+      errEl.textContent = 'Rol creado correctamente.';
+      setTimeout(function(){ errEl.textContent = ''; errEl.classList.remove('text-success'); errEl.classList.add('text-danger'); }, 1200);
     } else {
-      var errs = typeof data.error === 'string' ? data.error : JSON.parse(data.error);
+      var errs = {};
+      try { errs = typeof data.error === 'string' ? JSON.parse(data.error) : data.error; } catch (_) { errs = {}; }
       var msgs = [];
-      for (var k in errs) msgs.push(k + ': ' + (Array.isArray(errs[k]) ? errs[k].join(', ') : errs[k]));
+      for (var k in errs) {
+        var entry = errs[k];
+        if (Array.isArray(entry)) {
+          msgs.push(k + ': ' + entry.map(function(x){ return x.message || x; }).join(', '));
+        } else {
+          msgs.push(k + ': ' + (entry.message || entry));
+        }
+      }
+      if (!msgs.length && data.error) msgs.push(String(data.error));
       errEl.textContent = msgs.join('; ');
     }
   })

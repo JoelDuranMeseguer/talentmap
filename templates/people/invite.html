@@ -41,15 +41,20 @@
 
         <form method="post" id="invite-form">
           {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>
+          {% endif %}
 
           <div class="row g-2 mb-3">
             <div class="col">
               <label class="form-label" for="id_first_name">Nombre</label>
               {{ form.first_name }}
+              {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors }}</div>{% endif %}
             </div>
             <div class="col">
               <label class="form-label" for="id_last_name">Apellido</label>
               {{ form.last_name }}
+              {% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors }}</div>{% endif %}
             </div>
           </div>
 
@@ -64,17 +69,20 @@
           <div class="mb-3">
             <label class="form-label" for="id_department">Departamento</label>
             {{ form.department }}
+            {% if form.department.errors %}<div class="text-danger small mt-1">{{ form.department.errors }}</div>{% endif %}
           </div>
 
           <div class="mb-3">
             <label class="form-label" for="id_role">Rol</label>
             {{ form.role }}
+            {% if form.role.errors %}<div class="text-danger small mt-1">{{ form.role.errors }}</div>{% endif %}
           </div>
 
           <div class="mb-3">
             <label class="form-label" for="id_manager">Superior / Jefe (opcional)</label>
             {{ form.manager }}
             <div class="text-muted small mt-1">Si lo asignas, podrá evaluar al usuario al registrarse.</div>
+            {% if form.manager.errors %}<div class="text-danger small mt-1">{{ form.manager.errors }}</div>{% endif %}
           </div>
 
           <div class="form-check mb-3">
@@ -82,6 +90,7 @@
             <label class="form-check-label" for="id_create_internal">
               Crear como colaborador interno (sin invitación por correo)
             </label>
+            <div class="text-muted small">Útil para colaboradores externos o administrativos sin acceso al sistema.</div>
           </div>
 
           <div class="d-flex gap-2">
@@ -232,6 +241,19 @@
     roleSelect.setAttribute('data-selected', roleSelect.value);
     deptSelect.addEventListener('change', loadRolesForDept);
     if (deptSelect.value) loadRolesForDept();
+  }
+
+  const internalCheck = document.getElementById('id_create_internal');
+  const emailInput = document.getElementById('id_email');
+  function syncInternalMode() {
+    if (!internalCheck || !emailInput) return;
+    const internal = internalCheck.checked;
+    emailInput.required = !internal;
+    emailInput.placeholder = internal ? '(opcional para colaborador interno)' : 'nombre@empresa.com';
+  }
+  if (internalCheck) {
+    internalCheck.addEventListener('change', syncInternalMode);
+    syncInternalMode();
   }
 
   // Copy link UX (sin dependencias)

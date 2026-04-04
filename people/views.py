@@ -12,36 +12,16 @@ from .services.invitations import (
     resend_invitation_email,
     send_invitation_email,
 )
+from .services.onboarding import (
+    create_internal_employee,
+    has_pending_or_existing_user,
+    import_users_as_invitations,
+)
 from .excel_import import build_sample_excel, parse_excel_import
 from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.models import User
-
-
-def _create_internal_employee(first_name, last_name, department, role, manager, created_by):
-    """Create User + Employee without email (internal only, no login)."""
-    base = f"{first_name}_{last_name}".replace(" ", "_").lower()[:30]
-    username = base
-    n = 0
-    while User.objects.filter(username=username).exists():
-        n += 1
-        username = f"{base}_{n}"[:150]
-    user = User.objects.create(
-        username=username,
-        email="",
-        first_name=first_name,
-        last_name=last_name,
-        is_active=True,
-    )
-    user.set_unusable_password()
-    user.save()
-    return Employee.objects.create(
-        user=user,
-        department=department,
-        role=role,
-        manager=manager,
-    )
 
 
 @login_required
@@ -119,55 +99,10 @@ def import_users_excel(request):
             messages.error(request, e)
         return redirect("invite_user")
 
-    batch_managers_by_email = {}
-
-    def resolve_manager(r):
-        if r.get("manager"):
-            return r["manager"]
-        manager_email_pending = (r.get("manager_email_pending") or "").strip().lower()
-        if manager_email_pending:
-            return batch_managers_by_email.get(manager_email_pending)
-        mn, ma = r.get("manager_nombre", "").strip(), r.get("manager_apellido", "").strip()
-        if mn and ma:
-            matches = [
-                manager for manager in batch_managers_by_email.values()
-                if manager.user.first_name == mn and manager.user.last_name == ma
-            ]
-            if len(matches) == 1:
-                return matches[0]
-        return None
-
-    created = 0
-    for r in rows:
-        first_name = r["first_name"]
-        last_name = r["last_name"]
-        email = r["email"]
-        dept = r["department"]
-        role = r["role"]
-        manager = resolve_manager(r) or r.get("manager")
-
-        if User.objects.filter(email__iexact=email).exists() or Invitation.objects.filter(email__iexact=email, used_at__isnull=True, expires_at__gt=timezone.now()).exists():
-            messages.warning(request, f"Fila {r['row']}: {email} ya existe o tiene invitación pendiente.")
-            continue
-
-        if r.get("manager_email_pending") and not manager:
-            messages.warning(
-                request,
-                f"Fila {r['row']}: el manager '{r['manager_email_pending']}' también viene en el Excel y todavía no existe como empleado activo."
-                " Se envía la invitación sin manager; podrás asignarlo luego en el perfil del colaborador.",
-            )
-
-        inv = create_invitation(
-            email=email,
-            department=dept,
-            role=role,
-            manager=manager,
-            created_by=request.user,
-        )
-        send_invitation_email(invitation=inv)
-        created += 1
-
-    messages.success(request, f"Importados {created} usuarios.")
+    result = import_users_as_invitations(rows=rows, created_by=request.user)
+    for warning in result.warnings:
+        messages.warning(request, warning)
+    messages.success(request, f"Importados {result.created_count} usuarios.")
     return redirect("invite_user")
 
 
@@ -188,14 +123,19 @@ def invite_user(request):
             create_internal = form.cleaned_data.get("create_internal")
 
             if create_internal:
-                _create_internal_employee(first_name, last_name, department, role, manager, request.user)
+                create_internal_employee(
+                    first_name=first_name,
+                    last_name=last_name,
+                    department=department,
+                    role=role,
+                    manager=manager,
+                )
                 messages.success(request, f"Colaborador interno {first_name} {last_name} creado sin acceso a la plataforma.")
                 return redirect("invite_user")
             if User.objects.filter(email__iexact=email).exists():
                 messages.error(request, f"Ya existe un usuario activo con el correo {email}.")
             else:
-                pending = Invitation.objects.filter(email=email, used_at__isnull=True, expires_at__gt=timezone.now())
-                if pending.exists():
+                if has_pending_or_existing_user(email):
                     messages.error(request, f"Ya existe una invitación pendiente para {email}.")
                 else:
                     inv = create_invitation(

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -73,11 +73,22 @@ def _recompute_company(cycle: EvaluationCycle):
     recompute_cycle_scores(cycle, Employee.objects.filter(active=True))
 
 
+def _cycle_or_admin_redirect(request):
+    cycle = get_current_cycle(request)
+    if cycle:
+        return cycle, None
+    return None, redirect("/admin/")
+
+
+def _can_edit_employee(user, employee: Employee) -> bool:
+    return is_hr(user) or managed_employees_qs(user).filter(id=employee.id).exists()
+
+
 @login_required
 def cycle_home(request):
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     try:
         me = request.user.employee
@@ -106,9 +117,9 @@ def cycle_home(request):
 
 @login_required
 def team_overview(request):
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     # Managers: solo reportes directos, HR: toda la empresa
     emps = managed_employees_qs(request.user).select_related("user", "role", "department").order_by("user__last_name")
@@ -124,13 +135,13 @@ def edit_quantitative(request, employee_id):
     """
     CUANTITATIVO = metas (pesos 100% + % completado)
     """
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     emp = get_object_or_404(Employee, id=employee_id)
 
-    allowed = is_hr(request.user) or managed_employees_qs(request.user).filter(id=emp.id).exists()
+    allowed = _can_edit_employee(request.user, emp)
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
@@ -165,12 +176,12 @@ def competency_picker(request, employee_id):
     """
     Selector de competencias (para editar CUALITATIVO).
     """
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     emp = get_object_or_404(Employee, id=employee_id)
-    allowed = is_hr(request.user) or managed_employees_qs(request.user).filter(id=emp.id).exists()
+    allowed = _can_edit_employee(request.user, emp)
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
@@ -216,14 +227,14 @@ def _qual_progress(levels, rating_map, required_level):
 @login_required
 def edit_qualitative(request, employee_id, competency_id):
     """ CUALITATIVO = competencias→niveles→comportamientos con escala Nunca/Casi nunca/Casi siempre/Siempre. """
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     emp = get_object_or_404(Employee, id=employee_id)
     comp = get_object_or_404(Competency, id=competency_id)
 
-    allowed = is_hr(request.user) or managed_employees_qs(request.user).filter(id=emp.id).exists()
+    allowed = _can_edit_employee(request.user, emp)
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
@@ -320,9 +331,9 @@ def nine_box_dashboard(request):
     if not is_hr(request.user):
         return render(request, "evaluations/forbidden.html", status=403)
 
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     dept_id = request.GET.get("department")
     role_id = request.GET.get("role")

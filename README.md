@@ -2,6 +2,7 @@
 
 TalentMap is a Django app for employee talent mapping with:
 - invitation-based onboarding,
+- optional self-assessment (visible to managers, does not affect official score),
 - manager/HR evaluation permissions,
 - quantitative weighted goals,
 - qualitative competency progression,
@@ -23,6 +24,10 @@ TalentMap is a Django app for employee talent mapping with:
    ```bash
    python manage.py migrate
    python manage.py createsuperuser
+   ```
+   (Opcional) cargar datos demo:
+   ```bash
+   python manage.py seed_demo_data
    ```
 4. Run server:
    ```bash

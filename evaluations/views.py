@@ -11,7 +11,9 @@ from evaluations.models import (
     EmployeeCycleScore,
     EvaluationCycle,
     QualitativeIndicatorAssessment,
+    QualitativeIndicatorSelfAssessment,
     QuantitativeGoal,
+    QuantitativeGoalSelfAssessment,
 )
 from evaluations.services.scoring import BOXES, PASS_RATING, recompute_cycle_scores, terciles_for_scores
 from people.models import Department, Employee, Role
@@ -81,7 +83,12 @@ def _cycle_or_admin_redirect(request):
 
 
 def _can_edit_employee(user, employee: Employee) -> bool:
-    return is_hr(user) or managed_employees_qs(user).filter(id=employee.id).exists()
+    me = getattr(user, "employee", None)
+    return (
+        is_hr(user)
+        or managed_employees_qs(user).filter(id=employee.id).exists()
+        or (me is not None and me.id == employee.id)
+    )
 
 
 @login_required
@@ -100,6 +107,7 @@ def cycle_home(request):
     hr = is_hr(request.user)
 
     can_edit_me = hr or (me.manager_id and me.manager.user_id == request.user.id)
+    can_self_evaluate = True
 
     return render(
         request,
@@ -111,6 +119,7 @@ def cycle_home(request):
             "is_manager": is_manager,
             "is_hr": hr,
             "can_edit_me": can_edit_me,
+            "can_self_evaluate": can_self_evaluate,
         },
     )
 
@@ -146,6 +155,42 @@ def edit_quantitative(request, employee_id):
         return render(request, "evaluations/forbidden.html", status=403)
 
     qs = QuantitativeGoal.objects.filter(employee=emp, cycle=cycle).order_by("id")
+    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
+
+    self_map = {
+        s.goal_id: s for s in QuantitativeGoalSelfAssessment.objects.filter(employee=emp, cycle=cycle, goal__in=qs)
+    }
+
+    if is_self_eval:
+        if request.method == "POST":
+            for goal in qs:
+                raw = request.POST.get(f"self_goal_{goal.id}", "").strip()
+                if raw == "":
+                    continue
+                try:
+                    value = max(0, min(100, float(raw)))
+                except ValueError:
+                    continue
+                QuantitativeGoalSelfAssessment.objects.update_or_create(
+                    employee=emp,
+                    cycle=cycle,
+                    goal=goal,
+                    defaults={"completion_percent": value},
+                )
+            messages.success(request, "Autoevaluación cuantitativa guardada.")
+            return redirect("edit_quantitative", employee_id=emp.id)
+
+        return render(
+            request,
+            "evaluations/edit_quantitative.html",
+            {
+                "cycle": cycle,
+                "employee": emp,
+                "is_self_eval": True,
+                "goals": qs,
+                "self_map": self_map,
+            },
+        )
 
     if request.method == "POST":
         formset = GoalFormSet(request.POST, queryset=qs)
@@ -168,7 +213,11 @@ def edit_quantitative(request, employee_id):
     else:
         formset = GoalFormSet(queryset=qs)
 
-    return render(request, "evaluations/edit_quantitative.html", {"cycle": cycle, "employee": emp, "formset": formset})
+    return render(
+        request,
+        "evaluations/edit_quantitative.html",
+        {"cycle": cycle, "employee": emp, "formset": formset, "self_map": self_map, "is_self_eval": False},
+    )
 
 
 @login_required
@@ -185,13 +234,18 @@ def competency_picker(request, employee_id):
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
+    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
     reqs = (
         RoleCompetencyRequirement.objects.filter(role=emp.role)
         .select_related("competency")
         .order_by("competency__name")
     )
 
-    return render(request, "evaluations/competency_picker.html", {"cycle": cycle, "employee": emp, "reqs": reqs})
+    return render(
+        request,
+        "evaluations/competency_picker.html",
+        {"cycle": cycle, "employee": emp, "reqs": reqs, "is_self_eval": is_self_eval},
+    )
 
 
 def _qual_progress(levels, rating_map, required_level):
@@ -251,10 +305,18 @@ def edit_qualitative(request, employee_id, competency_id):
     for lvl in levels:
         indicator_ids.extend([i.id for i in lvl.indicators.all()])
 
-    existing = QualitativeIndicatorAssessment.objects.filter(
-        employee=emp, cycle=cycle, indicator_id__in=indicator_ids
-    )
+    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
+    model_cls = QualitativeIndicatorSelfAssessment if is_self_eval else QualitativeIndicatorAssessment
+
+    existing = model_cls.objects.filter(employee=emp, cycle=cycle, indicator_id__in=indicator_ids)
     rating_map = {a.indicator_id: int(a.rating) for a in existing}
+
+    self_rating_map = {}
+    if not is_self_eval:
+        self_existing = QualitativeIndicatorSelfAssessment.objects.filter(
+            employee=emp, cycle=cycle, indicator_id__in=indicator_ids
+        )
+        self_rating_map = {a.indicator_id: int(a.rating) for a in self_existing}
 
     achieved_level, unlocked_max_level, missing_level = _qual_progress(levels, rating_map, required_level)
     current_level = unlocked_max_level
@@ -274,15 +336,18 @@ def edit_qualitative(request, employee_id, competency_id):
                         rating = 1
                     rating = max(1, min(4, rating))
 
-                    QualitativeIndicatorAssessment.objects.update_or_create(
+                    model_cls.objects.update_or_create(
                         employee=emp,
                         cycle=cycle,
                         indicator=ind,
-                        defaults={"rating": rating, "assessed_by": request.user},
+                        defaults={"rating": rating, **({} if is_self_eval else {"assessed_by": request.user})},
                     )
 
-        _recompute_company(cycle)
-        messages.success(request, "Cualitativo guardado.")
+        if is_self_eval:
+            messages.success(request, "Autoevaluación cualitativa guardada.")
+        else:
+            _recompute_company(cycle)
+            messages.success(request, "Cualitativo guardado.")
         return redirect("edit_qualitative_competency", employee_id=emp.id, competency_id=comp.id)
 
     # GET render
@@ -318,6 +383,8 @@ def edit_qualitative(request, employee_id, competency_id):
             "unlocked_max_level": unlocked_max_level,
             "missing_level": missing_level,
             "PASS_RATING": PASS_RATING,
+            "is_self_eval": is_self_eval,
+            "self_rating_map": self_rating_map,
         },
     )
 

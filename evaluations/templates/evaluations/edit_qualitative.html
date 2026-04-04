@@ -6,11 +6,14 @@
 <div class="container">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h3 class="mb-1">Cualitativo · {{ competency.name }}</h3>
+      <h3 class="mb-1">Cualitativo · {{ competency.name }} {% if is_self_eval %}(Autoevaluación){% endif %}</h3>
       <div class="text-muted">{{ employee }} · {{ cycle.name }} · Requerido hasta nivel {{ required_level }}</div>
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Volver</a>
   </div>
+  {% if is_self_eval %}
+    <div class="alert alert-info">Tu autoevaluación es informativa y no modifica el score oficial.</div>
+  {% endif %}
   {% if missing_level %}
   <p><strong>⚠ Configuración incompleta:</strong> el nivel {{ missing_level }} no tiene comportamientos configurados. Contacta con HR/Admin.</p>
   {% endif %}
@@ -94,6 +97,11 @@
                     {% with current=rating_map|get:ind.id|default:1 %}
                     <div class="d-flex flex-column flex-md-row justify-content-between gap-2 py-2 border-bottom">
                       <div class="me-3">{{ ind.text }}</div>
+                      {% if not is_self_eval %}
+                        <div class="text-muted small">
+                          Auto: {% with self_val=self_rating_map|get:ind.id %}{% if self_val %}{{ self_val|rating_label }}{% else %}Sin autoevaluación{% endif %}{% endwith %}
+                        </div>
+                      {% endif %}
 
                       <div class="btn-group btn-group-sm" role="group" aria-label="rating">
                         <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"

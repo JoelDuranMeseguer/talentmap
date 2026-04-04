@@ -5,14 +5,20 @@
 <div class="container">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h3 class="mb-1">Cualitativo · Competencias</h3>
+      <h3 class="mb-1">Cualitativo · Competencias {% if is_self_eval %}(Autoevaluación){% endif %}</h3>
       <div class="text-muted">{{ employee }} · {{ cycle.name }}</div>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Volver</a>
+    <a class="btn btn-outline-secondary" href="{% if is_self_eval %}{% url 'eval_home' %}{% else %}{% url 'team_overview' %}{% endif %}">Volver</a>
   </div>
 
   <div class="card p-4">
-    <p class="text-muted mb-3">Elige una competencia para evaluar (por niveles y comportamientos).</p>
+    <p class="text-muted mb-3">
+      {% if is_self_eval %}
+        Elige una competencia para completar tu autoevaluación (visible para tu superior y sin impacto en score oficial).
+      {% else %}
+        Elige una competencia para evaluar (por niveles y comportamientos).
+      {% endif %}
+    </p>
 
     <div class="list-group">
       {% for r in reqs %}

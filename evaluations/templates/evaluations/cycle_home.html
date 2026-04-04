@@ -39,6 +39,14 @@
         {% else %}
           <div class="mt-3 text-muted small">Solo tu superior o administración pueden editar tu evaluación.</div>
         {% endif %}
+
+        {% if can_self_evaluate %}
+          <hr class="my-4">
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'edit_quantitative' me.id %}">Mi autoevaluación cuantitativa</a>
+            <a class="btn btn-outline-secondary" href="{% url 'competency_picker' me.id %}">Mi autoevaluación cualitativa</a>
+          </div>
+        {% endif %}
       </div>
     </div>
 

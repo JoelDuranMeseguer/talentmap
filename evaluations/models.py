@@ -122,3 +122,37 @@ class EmployeeCycleScore(models.Model):
 def remember_cycle(cycle: EvaluationCycle) -> str:
     # helper pequeño para evitar __str__ muy largo si lo editas a menudo
     return cycle.name
+
+
+class QuantitativeGoalSelfAssessment(models.Model):
+    """Autoevaluación cuantitativa: no afecta cálculo oficial."""
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="quant_self_assessments")
+    cycle = models.ForeignKey(EvaluationCycle, on_delete=models.CASCADE, related_name="quant_self_assessments")
+    goal = models.ForeignKey(QuantitativeGoal, on_delete=models.CASCADE, related_name="self_assessments")
+    completion_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("employee", "cycle", "goal")]
+        indexes = [models.Index(fields=["employee", "cycle"])]
+
+    def clean(self):
+        if self.completion_percent < 0 or self.completion_percent > 100:
+            raise ValidationError({"completion_percent": "Debe estar entre 0 y 100."})
+
+
+class QualitativeIndicatorSelfAssessment(models.Model):
+    """Autoevaluación cualitativa: visible para superior, sin impacto en score oficial."""
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="qual_self_assessments")
+    cycle = models.ForeignKey(EvaluationCycle, on_delete=models.CASCADE, related_name="qual_self_assessments")
+    indicator = models.ForeignKey(LevelIndicator, on_delete=models.CASCADE, related_name="self_assessments")
+    rating = models.PositiveSmallIntegerField(choices=BehaviorRating.choices, default=BehaviorRating.NEVER)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("employee", "cycle", "indicator")]
+        indexes = [models.Index(fields=["employee", "cycle"])]
+
+    def clean(self):
+        if self.rating < 1 or self.rating > 4:
+            raise ValidationError({"rating": "Rating inválido."})

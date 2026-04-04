@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import EmployeeCycleScore, EvaluationCycle, QualitativeIndicatorAssessment, QuantitativeGoal
+from .models import (
+    EmployeeCycleScore,
+    EvaluationCycle,
+    QualitativeIndicatorAssessment,
+    QualitativeIndicatorSelfAssessment,
+    QuantitativeGoal,
+    QuantitativeGoalSelfAssessment,
+)
 
 
 @admin.register(EvaluationCycle)
@@ -26,3 +33,15 @@ class QualitativeIndicatorAssessmentAdmin(admin.ModelAdmin):
 class EmployeeCycleScoreAdmin(admin.ModelAdmin):
     list_display = ("employee", "cycle", "qualitative_score", "quantitative_score", "box_label", "updated_at")
     list_filter = ("cycle", "box_code")
+
+
+@admin.register(QuantitativeGoalSelfAssessment)
+class QuantitativeGoalSelfAssessmentAdmin(admin.ModelAdmin):
+    list_display = ("employee", "cycle", "goal", "completion_percent", "updated_at")
+    list_filter = ("cycle",)
+
+
+@admin.register(QualitativeIndicatorSelfAssessment)
+class QualitativeIndicatorSelfAssessmentAdmin(admin.ModelAdmin):
+    list_display = ("employee", "cycle", "indicator", "rating", "updated_at")
+    list_filter = ("cycle", "rating")

@@ -1,85 +1,185 @@
 {% extends "base.html" %}
+{% load eval_extras %}
 {% block title %}Cuantitativo (metas) · {{ employee }} · TalentMap{% endblock %}
 
 {% block content %}
 <div class="container">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h3 class="mb-1">Cuantitativo · Metas</h3>
+      <h3 class="mb-1">Cuantitativo · Metas {% if is_self_eval %}(Autoevaluación){% endif %}</h3>
       <div class="text-muted">{{ employee }} · {{ cycle.name }}</div>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Volver</a>
+    <a class="btn btn-outline-secondary" href="{% if is_self_eval %}{% url 'eval_home' %}{% else %}{% url 'team_overview' %}{% endif %}">Volver</a>
   </div>
 
   <div class="card p-4">
-    <div class="alert alert-info mb-4">
-      Los pesos deben sumar exactamente <strong>100%</strong>.
-    </div>
-
-    <form method="post">
-      {% csrf_token %}
-      {{ formset.management_form }}
-
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead class="text-muted small">
-            <tr>
-              <th>Título</th>
-              <th>Descripción</th>
-              <th style="width: 140px;">Peso %</th>
-              <th style="width: 160px;">Completado %</th>
-              <th style="width: 120px;">Borrar</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for f in formset %}
+    {% if is_self_eval %}
+      <div class="alert alert-info mb-4">
+        Esta autoevaluación es solo de referencia para tu superior. <strong>No cambia el score oficial</strong>.
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead class="text-muted small">
               <tr>
-                <td>
-                  {{ f.title }}
-                  {% if f.title.errors %}<div class="text-danger small">{{ f.title.errors }}</div>{% endif %}
-                </td>
-                <td>
-                  {{ f.description }}
-                  {% if f.description.errors %}<div class="text-danger small">{{ f.description.errors }}</div>{% endif %}
-                </td>
-                <td>
-                  {{ f.weight_percent }}
-                  {% if f.weight_percent.errors %}<div class="text-danger small">{{ f.weight_percent.errors }}</div>{% endif %}
-                </td>
-                <td>
-                  {{ f.completion_percent }}
-                  {% if f.completion_percent.errors %}<div class="text-danger small">{{ f.completion_percent.errors }}</div>{% endif %}
-                </td>
-                <td>
-                  {% if f.instance.pk %}
-                    <div class="form-check">
-                      {{ f.DELETE }}
-                      <label class="form-check-label">Eliminar</label>
-                    </div>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
+                <th>Título</th>
+                <th>Descripción</th>
+                <th style="width: 140px;">Peso %</th>
+                <th style="width: 140px;">Oficial %</th>
+                <th style="width: 180px;">Mi autoevaluación %</th>
               </tr>
-              {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {% for goal in goals %}
+                {% with self_row=self_map|get:goal.id %}
+                <tr>
+                  <td class="fw-semibold">{{ goal.title }}</td>
+                  <td class="text-muted small">{{ goal.description|default:"—" }}</td>
+                  <td>{{ goal.weight_percent }}</td>
+                  <td>{{ goal.completion_percent }}</td>
+                  <td>
+                    <input
+                      class="form-control"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      name="self_goal_{{ goal.id }}"
+                      value="{% if self_row %}{{ self_row.completion_percent }}{% endif %}"
+                    >
+                  </td>
+                </tr>
+                {% endwith %}
+              {% empty %}
+                <tr><td colspan="5" class="text-muted">No hay metas configuradas aún para este ciclo.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Guardar autoevaluación</button>
+          <a class="btn btn-outline-secondary" href="{% url 'eval_home' %}">Cancelar</a>
+        </div>
+      </form>
+    {% else %}
+      <div class="alert alert-info mb-4">
+        Los pesos deben sumar exactamente <strong>100%</strong>.
       </div>
 
-      {% if formset.non_form_errors %}
-        <div class="text-danger small">{{ formset.non_form_errors }}</div>
-      {% endif %}
+      <form method="post" id="quant-form">
+        {% csrf_token %}
+        {{ formset.management_form }}
 
-      <div class="text-muted small mb-3">
-        La última fila permite añadir una nueva meta (déjala en blanco si no quieres añadir).
-      </div>
+        <div class="table-responsive">
+          <table class="table align-middle" id="goals-table">
+            <thead class="text-muted small">
+              <tr>
+                <th>Título</th>
+                <th>Descripción</th>
+                <th style="width: 140px;">Peso %</th>
+                <th style="width: 160px;">Completado %</th>
+                <th style="width: 160px;">Autoevaluación %</th>
+                <th style="width: 120px;">Borrar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in formset %}
+                {% with self_row=self_map|get:f.instance.id %}
+                <tr>
+                  <td>
+                    {{ f.title }}
+                    {% if f.title.errors %}<div class="text-danger small">{{ f.title.errors }}</div>{% endif %}
+                  </td>
+                  <td>
+                    {{ f.description }}
+                    {% if f.description.errors %}<div class="text-danger small">{{ f.description.errors }}</div>{% endif %}
+                  </td>
+                  <td>
+                    {{ f.weight_percent }}
+                    {% if f.weight_percent.errors %}<div class="text-danger small">{{ f.weight_percent.errors }}</div>{% endif %}
+                  </td>
+                  <td>
+                    {{ f.completion_percent }}
+                    {% if f.completion_percent.errors %}<div class="text-danger small">{{ f.completion_percent.errors }}</div>{% endif %}
+                  </td>
+                  <td>
+                    {% if f.instance.pk and self_row %}
+                      <span class="badge text-bg-light border">{{ self_row.completion_percent }}</span>
+                    {% elif f.instance.pk %}
+                      <span class="text-muted small">Sin autoevaluación</span>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if f.instance.pk %}
+                      <div class="form-check">
+                        {{ f.DELETE }}
+                        <label class="form-check-label">Eliminar</label>
+                      </div>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endwith %}
+                {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
 
-      <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Guardar cambios</button>
-        <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Cancelar</a>
-      </div>
-    </form>
+        {% if formset.non_form_errors %}
+          <div class="text-danger small">{{ formset.non_form_errors }}</div>
+        {% endif %}
+
+        <div class="text-muted small mb-3">
+          Usa "Añadir meta" para crear una nueva fila.
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary" id="add-goal-row">Añadir meta</button>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+          <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Cancelar</a>
+        </div>
+      </form>
+
+      <template id="empty-goal-row-template">
+        <tr>
+          <td>{{ formset.empty_form.title }}</td>
+          <td>{{ formset.empty_form.description }}</td>
+          <td>{{ formset.empty_form.weight_percent }}</td>
+          <td>{{ formset.empty_form.completion_percent }}</td>
+          <td><span class="text-muted">—</span></td>
+          <td><span class="text-muted">—</span></td>
+        </tr>
+      </template>
+    {% endif %}
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if not is_self_eval %}
+<script>
+  (function () {
+    const addBtn = document.getElementById('add-goal-row');
+    const tableBody = document.querySelector('#goals-table tbody');
+    const totalForms = document.getElementById('id_form-TOTAL_FORMS');
+    const tpl = document.getElementById('empty-goal-row-template');
+
+    if (!addBtn || !tableBody || !totalForms || !tpl) return;
+
+    addBtn.addEventListener('click', function () {
+      const formIndex = parseInt(totalForms.value, 10);
+      const html = tpl.innerHTML.replaceAll('__prefix__', String(formIndex));
+      const wrapper = document.createElement('tbody');
+      wrapper.innerHTML = html.trim();
+      tableBody.appendChild(wrapper.firstElementChild);
+      totalForms.value = formIndex + 1;
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

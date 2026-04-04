@@ -99,8 +99,8 @@
                      data-cnt="{{ s.quantitative_score }}"
                      data-box="{{ s.box_label }}"
                      data-can-edit="{% if s.employee.id in editable_employee_ids %}1{% endif %}"
-                     data-edit-qual-url="{% url 'edit_qualitative' s.employee.id %}"
-                     data-edit-quant-url="{% url 'competency_picker' s.employee.id %}"
+                     data-edit-qual-url="{% url 'competency_picker' s.employee.id %}"
+                     data-edit-quant-url="{% url 'edit_quantitative' s.employee.id %}"
                      data-delete-url="{% url 'delete_employee' s.employee.id %}">
                   <div>
                     <div class="emp-name">{{ s.employee }}</div>

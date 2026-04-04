@@ -20,7 +20,6 @@ from django.contrib import messages
 
 
 SESSION_CYCLE_KEY = "eval_current_cycle_id"
-from django.shortcuts import redirect
 
 @login_required
 def home(request):
@@ -273,7 +272,7 @@ def edit_qualitative(request, employee_id, competency_id):
 
         _recompute_company(cycle)
         messages.success(request, "Cualitativo guardado.")
-        return redirect("edit_qualitative", employee_id=emp.id, competency_id=comp.id)
+        return redirect("edit_qualitative_competency", employee_id=emp.id, competency_id=comp.id)
 
     # GET render
     levels_ctx = []

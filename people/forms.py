@@ -42,6 +42,11 @@ class InviteForm(forms.Form):
         empty_label="Sin superior",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+    create_internal = forms.BooleanField(
+        label="Crear colaborador interno (sin login)",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

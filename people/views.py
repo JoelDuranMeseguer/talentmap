@@ -1,15 +1,17 @@
-from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import logout, login
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.core.mail import send_mail
 from django.utils import timezone
-from datetime import timedelta
 
 from .models import Invitation, Employee, Department, Role
 from .forms import InviteForm, RegisterForm, DepartmentForm, RoleForm
 from .services.access import is_hr
+from .services.invitations import (
+    create_invitation,
+    resend_invitation_email,
+    send_invitation_email,
+)
 from .excel_import import build_sample_excel, parse_excel_import
 from django.views.decorators.http import require_POST
 from django.conf import settings
@@ -155,23 +157,14 @@ def import_users_excel(request):
                 " Se envía la invitación sin manager; podrás asignarlo luego en el perfil del colaborador.",
             )
 
-        inv = Invitation.objects.create(
+        inv = create_invitation(
             email=email,
             department=dept,
             role=role,
             manager=manager,
             created_by=request.user,
-            expires_at=timezone.now() + timedelta(days=7),
         )
-        site_url = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
-        register_url = f"{site_url}/accounts/register/?token={inv.token}"
-        send_mail(
-            subject="Invitación a TalentMap",
-            message=f"Hola,\n\nHas sido invitado a unirte a TalentMap.\n\nCrea tu cuenta aquí: {register_url}\n\nEste enlace expira en 7 días.",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False,
-        )
+        send_invitation_email(invitation=inv)
         created += 1
 
     messages.success(request, f"Importados {created} usuarios.")
@@ -192,7 +185,12 @@ def invite_user(request):
             department = form.cleaned_data["department"]
             role = form.cleaned_data["role"]
             manager = form.cleaned_data.get("manager")
+            create_internal = form.cleaned_data.get("create_internal")
 
+            if create_internal:
+                _create_internal_employee(first_name, last_name, department, role, manager, request.user)
+                messages.success(request, f"Colaborador interno {first_name} {last_name} creado sin acceso a la plataforma.")
+                return redirect("invite_user")
             if User.objects.filter(email__iexact=email).exists():
                 messages.error(request, f"Ya existe un usuario activo con el correo {email}.")
             else:
@@ -200,28 +198,14 @@ def invite_user(request):
                 if pending.exists():
                     messages.error(request, f"Ya existe una invitación pendiente para {email}.")
                 else:
-                    inv = Invitation.objects.create(
+                    inv = create_invitation(
                         email=email,
                         department=department,
                         role=role,
                         manager=manager,
                         created_by=request.user,
-                        expires_at=timezone.now() + timedelta(days=7),
                     )
-                    site_url = getattr(settings, "SITE_URL", f"http://127.0.0.1:8000")
-                    register_url = f"{site_url}/accounts/register/?token={inv.token}"
-                    send_mail(
-                        subject="Invitación a TalentMap",
-                        message=(
-                            f"Hola {first_name},\n\n"
-                            f"Has sido invitado a unirte a TalentMap como {role.name} en {department.name}.\n\n"
-                            f"Crea tu cuenta aquí: {register_url}\n\n"
-                            "Este enlace expira en 7 días."
-                        ),
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[email],
-                        fail_silently=False,
-                    )
+                    send_invitation_email(invitation=inv, first_name=first_name)
                     messages.success(request, f"Invitación enviada a {email}.")
                     return redirect("invite_user")
     else:
@@ -330,25 +314,7 @@ def resend_invitation(request, token):
         messages.error(request, "Esta invitación ya fue usada.")
         return redirect("invite_user")
 
-    # Extiende la expiración al reenviar (7 días desde hoy)
-    inv.expires_at = timezone.now() + timedelta(days=7)
-    inv.save(update_fields=["expires_at"])
-
-    site_url = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
-    register_url = f"{site_url}/accounts/register/?token={inv.token}"
-
-    send_mail(
-        subject="Invitación a TalentMap (reenviada)",
-        message=(
-            "Hola,\n\n"
-            "Te reenviamos tu invitación a TalentMap.\n\n"
-            f"Crea tu cuenta aquí: {register_url}\n\n"
-            "Este enlace expira en 7 días."
-        ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[inv.email],
-        fail_silently=False,
-    )
+    resend_invitation_email(inv)
 
     messages.success(request, f"Invitación reenviada a {inv.email}.")
     return redirect("invite_user")

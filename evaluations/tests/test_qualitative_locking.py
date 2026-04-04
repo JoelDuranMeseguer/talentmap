@@ -32,7 +32,7 @@ class TestQualitativeLocking(TestCase):
 
     def test_locked_level_is_not_saved(self):
         self.client.login(username="hr", password="x")
-        url = reverse("edit_qualitative", args=[self.emp.id, self.comp.id])
+        url = reverse("edit_qualitative_competency", args=[self.emp.id, self.comp.id])
 
         # Nivel 1 aún no completado -> nivel 2 bloqueado.
         resp = self.client.post(url, data={f"ind_{self.i1.id}": "3", f"ind_{self.i2.id}": "4"})
@@ -48,7 +48,7 @@ class TestQualitativeLocking(TestCase):
 
     def test_after_unlock_level_2_can_be_saved(self):
         self.client.login(username="hr", password="x")
-        url = reverse("edit_qualitative", args=[self.emp.id, self.comp.id])
+        url = reverse("edit_qualitative_competency", args=[self.emp.id, self.comp.id])
 
         # 1) Completa nivel 1
         self.client.post(url, data={f"ind_{self.i1.id}": "3"})

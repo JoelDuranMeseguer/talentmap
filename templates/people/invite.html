@@ -77,6 +77,13 @@
             <div class="text-muted small mt-1">Si lo asignas, podrá evaluar al usuario al registrarse.</div>
           </div>
 
+          <div class="form-check mb-3">
+            {{ form.create_internal }}
+            <label class="form-check-label" for="id_create_internal">
+              Crear como colaborador interno (sin invitación por correo)
+            </label>
+          </div>
+
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary">
               Enviar invitación

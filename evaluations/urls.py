@@ -19,7 +19,7 @@ urlpatterns = [
     path(
         "employee/<int:employee_id>/competency/<int:competency_id>/qualitative/",
         views.edit_qualitative,
-        name="edit_qualitative",
+        name="edit_qualitative_competency",
     ),
     path(
         "employee/<int:employee_id>/competencies/",

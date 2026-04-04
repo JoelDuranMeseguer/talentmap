@@ -24,6 +24,7 @@ Set at minimum:
 python manage.py migrate
 python manage.py collectstatic --noinput
 python manage.py check --deploy
+python manage.py test
 ```
 
 ## 4) Process model
@@ -36,7 +37,14 @@ gunicorn talentmap.wsgi:application --bind 0.0.0.0:8000 --workers 3
 
 Run behind a reverse proxy (Nginx/ALB/etc.) with HTTPS termination and `X-Forwarded-Proto` passed through.
 
-## 5) Optional periodic tasks
+## 5) Post-deploy smoke checks
+
+- Login works for HR and manager user.
+- Invite flow: create invitation, open token URL, register account.
+- Team overview page loads and can edit quantitative/qualitative forms.
+- 9-box loads and modal actions open expected links.
+
+## 6) Optional periodic tasks
 
 Recompute scores after bulk updates/imports:
 

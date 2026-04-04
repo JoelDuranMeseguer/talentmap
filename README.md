@@ -28,6 +28,10 @@ TalentMap is a Django app for employee talent mapping with:
    ```bash
    python manage.py runserver
    ```
+   or:
+   ```bash
+   make run
+   ```
 
 ## Tests
 
@@ -77,6 +81,10 @@ Full deployment guide: [`docs/deployment.md`](docs/deployment.md)
 - [ ] `python manage.py collectstatic --noinput`
 - [ ] `python manage.py check --deploy`
 - [ ] Gunicorn/process manager configured
+- [ ] SMTP provider configured and tested (`EMAIL_*`)
+- [ ] Daily DB backups + restore test defined
+- [ ] Application logging/monitoring configured (Sentry/APM + metrics)
+- [ ] CI/CD pipeline runs tests and `check --deploy`
 
 ## Management helpers
 
@@ -85,3 +93,11 @@ Recompute scores manually:
 ```bash
 python manage.py recompute_scores
 ```
+
+## What is still intentionally out of scope
+
+This repository is now implementation-ready for an internal MVP, but still expects company-specific ops setup:
+
+- Infrastructure provisioning (DB, secrets manager, TLS certs, reverse proxy).
+- Centralized observability (error tracking, logs retention, alerts).
+- Disaster recovery procedures (backup retention and restore drills).

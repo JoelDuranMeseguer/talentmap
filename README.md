@@ -55,11 +55,28 @@ export DJANGO_SETTINGS_MODULE=talentmap.settings.prod
 
 ## Production notes
 
+- Install production dependencies with `pip install -r requirements-prod.txt`.
 - Use PostgreSQL by setting `DATABASE_URL`.
 - Set a strong `SECRET_KEY`.
 - Set `DEBUG=False` and valid `ALLOWED_HOSTS`.
 - Configure `CSRF_TRUSTED_ORIGINS` and HTTPS headers behind reverse proxy.
 - Run `collectstatic` in deploy pipeline.
+- Use `DJANGO_SETTINGS_MODULE=talentmap.settings.prod`.
+
+Full deployment guide: [`docs/deployment.md`](docs/deployment.md)
+
+## Production checklist
+
+- [ ] `DJANGO_SETTINGS_MODULE=talentmap.settings.prod`
+- [ ] `SECRET_KEY` is set and not default
+- [ ] `DEBUG=False`
+- [ ] `ALLOWED_HOSTS` configured
+- [ ] `DATABASE_URL` points to PostgreSQL
+- [ ] `CSRF_TRUSTED_ORIGINS` configured for public domain(s)
+- [ ] `python manage.py migrate`
+- [ ] `python manage.py collectstatic --noinput`
+- [ ] `python manage.py check --deploy`
+- [ ] Gunicorn/process manager configured
 
 ## Management helpers
 

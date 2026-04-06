@@ -10,7 +10,7 @@ from openpyxl import Workbook
 
 from people.excel_import import parse_excel_import
 from people.forms import InviteForm
-from people.models import Department, Invitation, Role, Employee
+from people.models import BrandingSettings, Department, Invitation, Role, Employee
 
 
 def build_excel(rows):
@@ -130,3 +130,8 @@ class InviteAndExcelImportTests(TestCase):
         self.assertEqual(Invitation.objects.count(), 0)
         emp = Employee.objects.get(user__first_name="Interno")
         self.assertFalse(emp.user.has_usable_password())
+
+    def test_branding_settings_singleton_helper(self):
+        s1 = BrandingSettings.get_solo()
+        s2 = BrandingSettings.get_solo()
+        self.assertEqual(s1.id, s2.id)

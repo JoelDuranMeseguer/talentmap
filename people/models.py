@@ -67,3 +67,23 @@ class Invitation(models.Model):
         if self.used_at:
             return False
         return timezone.now() < self.expires_at
+
+
+class BrandingSettings(models.Model):
+    """
+    Personalización visual global de la app.
+    """
+    company_name = models.CharField(max_length=120, default="TalentMap")
+    primary_color = models.CharField(max_length=7, default="#2563eb")
+    header_background_url = models.URLField(blank=True, default="")
+    login_background_url = models.URLField(blank=True, default="")
+    card_glass_effect = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return f"Branding: {self.company_name}"

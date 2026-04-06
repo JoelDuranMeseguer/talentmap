@@ -32,13 +32,13 @@ class TestQualitativeLocking(TestCase):
 
     def test_locked_level_is_not_saved(self):
         self.client.login(username="hr", password="x")
-        url = reverse("edit_qualitative", args=[self.emp.id, self.comp.id])
+        url = reverse("edit_qualitative_competency", args=[self.emp.id, self.comp.id])
 
-        # Nivel 1 aún no completado -> nivel 2 bloqueado.
-        resp = self.client.post(url, data={f"ind_{self.i1.id}": "3", f"ind_{self.i2.id}": "4"})
+        # Nivel 1 sin completar -> nivel 2 bloqueado.
+        resp = self.client.post(url, data={f"ind_{self.i1.id}": "2", f"ind_{self.i2.id}": "4"})
         self.assertEqual(resp.status_code, 302)
 
-        # Debe haberse guardado solo nivel 1
+        # Debe haberse guardado solo nivel 1 (sin desbloquear nivel 2)
         self.assertTrue(
             QualitativeIndicatorAssessment.objects.filter(employee=self.emp, cycle=self.cycle, indicator=self.i1).exists()
         )
@@ -46,14 +46,11 @@ class TestQualitativeLocking(TestCase):
             QualitativeIndicatorAssessment.objects.filter(employee=self.emp, cycle=self.cycle, indicator=self.i2).exists()
         )
 
-    def test_after_unlock_level_2_can_be_saved(self):
+    def test_level_2_can_be_saved_in_same_submit_once_level_1_is_completed(self):
         self.client.login(username="hr", password="x")
-        url = reverse("edit_qualitative", args=[self.emp.id, self.comp.id])
+        url = reverse("edit_qualitative_competency", args=[self.emp.id, self.comp.id])
 
-        # 1) Completa nivel 1
-        self.client.post(url, data={f"ind_{self.i1.id}": "3"})
-
-        # 2) Ahora nivel 2 debería poder guardarse
+        # Completa nivel 1 y nivel 2 en el mismo submit.
         self.client.post(url, data={f"ind_{self.i1.id}": "3", f"ind_{self.i2.id}": "4"})
         self.assertTrue(
             QualitativeIndicatorAssessment.objects.filter(employee=self.emp, cycle=self.cycle, indicator=self.i2).exists()

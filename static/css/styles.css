@@ -35,6 +35,14 @@
   color: var(--tm-primary-hover);
 }
 
+.talentmap-header .btn-light.border {
+  background: #ffffff;
+}
+
+.talentmap-header .btn-light.border:hover {
+  background: #f1f5f9;
+}
+
 .talentmap-main {
   flex: 1;
   padding: 2rem 0;

@@ -16,12 +16,12 @@
       Los pesos deben sumar exactamente <strong>100%</strong>.
     </div>
 
-    <form method="post">
+    <form method="post" id="quant-form">
       {% csrf_token %}
       {{ formset.management_form }}
 
       <div class="table-responsive">
-        <table class="table align-middle">
+        <table class="table align-middle" id="goals-table">
           <thead class="text-muted small">
             <tr>
               <th>Título</th>
@@ -72,14 +72,47 @@
       {% endif %}
 
       <div class="text-muted small mb-3">
-        La última fila permite añadir una nueva meta (déjala en blanco si no quieres añadir).
+        Usa "Añadir meta" para crear una nueva fila.
       </div>
 
       <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" id="add-goal-row">Añadir meta</button>
         <button type="submit" class="btn btn-primary">Guardar cambios</button>
         <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Cancelar</a>
       </div>
     </form>
+
+    <template id="empty-goal-row-template">
+      <tr>
+        <td>{{ formset.empty_form.title }}</td>
+        <td>{{ formset.empty_form.description }}</td>
+        <td>{{ formset.empty_form.weight_percent }}</td>
+        <td>{{ formset.empty_form.completion_percent }}</td>
+        <td><span class="text-muted">—</span></td>
+      </tr>
+    </template>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const addBtn = document.getElementById('add-goal-row');
+    const tableBody = document.querySelector('#goals-table tbody');
+    const totalForms = document.getElementById('id_form-TOTAL_FORMS');
+    const tpl = document.getElementById('empty-goal-row-template');
+
+    if (!addBtn || !tableBody || !totalForms || !tpl) return;
+
+    addBtn.addEventListener('click', function () {
+      const formIndex = parseInt(totalForms.value, 10);
+      const html = tpl.innerHTML.replaceAll('__prefix__', String(formIndex));
+      const wrapper = document.createElement('tbody');
+      wrapper.innerHTML = html.trim();
+      tableBody.appendChild(wrapper.firstElementChild);
+      totalForms.value = formIndex + 1;
+    });
+  })();
+</script>
 {% endblock %}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load eval_extras %}
+{% block title %}Perfil ideal por rol · TalentMap{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+      <h3 class="mb-1">Perfil ideal por rol</h3>
+      <div class="text-muted small">Define niveles requeridos de competencias por rol (manual o por Excel).</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-success" href="{% url 'download_role_profile_template' %}">Descargar plantilla Excel</a>
+      <a class="btn btn-outline-secondary" href="{% url 'config' %}">Volver a configuración</a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card p-4 h-100">
+        <h5 class="mb-3">1) Seleccionar rol</h5>
+        <form method="get" class="mb-3">
+          <label class="form-label">Rol</label>
+          <select class="form-select" name="role" onchange="this.form.submit()">
+            <option value="">Selecciona un rol</option>
+            {% for role in roles %}
+              <option value="{{ role.id }}" {% if selected_role and selected_role.id == role.id %}selected{% endif %}>
+                {{ role.name }} · {{ role.department.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </form>
+
+        <hr>
+        <h5 class="mb-3">2) Importar desde Excel</h5>
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <input type="hidden" name="import_profile" value="1">
+          <div class="mb-3">
+            <input type="file" name="excel_file" class="form-control" accept=".xlsx" required>
+          </div>
+          <button class="btn btn-primary w-100">Importar perfil ideal</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card p-4">
+        <h5 class="mb-3">3) Edición rápida</h5>
+        {% if selected_role %}
+          <p class="text-muted small">Rol seleccionado: <strong>{{ selected_role.name }}</strong> ({{ selected_role.department.name }})</p>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="save_profile" value="1">
+            <input type="hidden" name="role" value="{{ selected_role.id }}">
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Competencia</th>
+                    <th style="width:220px;">Nivel ideal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for comp in competencies %}
+                    {% with req=req_map|get:comp.id %}
+                      <tr>
+                        <td>{{ comp.name }}</td>
+                        <td>
+                          <select class="form-select" name="comp_{{ comp.id }}">
+                            <option value="">Sin definir</option>
+                            <option value="1" {% if req and req.required_level == 1 %}selected{% endif %}>1 · Básico</option>
+                            <option value="2" {% if req and req.required_level == 2 %}selected{% endif %}>2 · Avanzado</option>
+                            <option value="3" {% if req and req.required_level == 3 %}selected{% endif %}>3 · Experto</option>
+                          </select>
+                        </td>
+                      </tr>
+                    {% endwith %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="d-flex justify-content-end">
+              <button class="btn btn-primary">Guardar perfil ideal del rol</button>
+            </div>
+          </form>
+        {% else %}
+          <div class="text-muted">Selecciona un rol para editar su perfil ideal manualmente.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

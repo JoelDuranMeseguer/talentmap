@@ -193,16 +193,30 @@ def competency_picker(request, employee_id):
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
-    reqs = (
+    reqs = list(
         RoleCompetencyRequirement.objects.filter(role=emp.role)
         .select_related("competency")
         .order_by("competency__name")
     )
 
+    model_cls = QualitativeIndicatorSelfAssessment if is_self_eval else QualitativeIndicatorAssessment
+    req_rows = []
+    for req in reqs:
+        levels = (
+            CompetencyLevel.objects.filter(competency=req.competency, level__lte=req.required_level)
+            .prefetch_related("indicators")
+            .order_by("level")
+        )
+        indicator_ids = [ind.id for lvl in levels for ind in lvl.indicators.all()]
+        ratings = model_cls.objects.filter(employee=emp, cycle=cycle, indicator_id__in=indicator_ids)
+        rating_map = {a.indicator_id: int(a.rating) for a in ratings}
+        achieved_level, _, _ = _qual_progress(levels, rating_map, int(req.required_level))
+        req_rows.append({"req": req, "achieved_level": achieved_level})
+
     return render(
         request,
         "evaluations/competency_picker.html",
-        {"cycle": cycle, "employee": emp, "reqs": reqs, "is_self_eval": is_self_eval},
+        {"cycle": cycle, "employee": emp, "req_rows": req_rows, "is_self_eval": is_self_eval},
     )
 
 
@@ -286,11 +300,14 @@ def edit_qualitative(request, employee_id, competency_id):
 
     if request.method == "POST":
         with transaction.atomic():
+            post_rating_map = dict(rating_map)
+            dynamic_unlocked_max = unlocked_max_level
             for lvl in levels:
                 # Enforce server-side locking: no aceptar niveles bloqueados.
-                if lvl.level > unlocked_max_level:
+                if lvl.level > dynamic_unlocked_max:
                     continue
 
+                inds = list(lvl.indicators.all())
                 for ind in lvl.indicators.all():
                     raw = request.POST.get(f"ind_{ind.id}")
                     try:
@@ -305,6 +322,16 @@ def edit_qualitative(request, employee_id, competency_id):
                         indicator=ind,
                         defaults={"rating": rating, **({} if is_self_eval else {"assessed_by": request.user})},
                     )
+                    post_rating_map[ind.id] = rating
+
+                # Recalcula desbloqueo dentro del mismo submit para no obligar a guardar entre niveles.
+                if inds:
+                    passed = sum(1 for ind in inds if post_rating_map.get(ind.id, 1) >= PASS_RATING)
+                    if passed == len(inds):
+                        dynamic_unlocked_max = min(lvl.level + 1, required_level)
+                    else:
+                        dynamic_unlocked_max = lvl.level
+                        break
 
         if is_self_eval:
             messages.success(request, "Autoevaluación cualitativa guardada.")

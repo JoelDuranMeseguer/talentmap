@@ -6,11 +6,14 @@
 <div class="container">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h3 class="mb-1">Cualitativo · {{ competency.name }}</h3>
+      <h3 class="mb-1">Cualitativo · {{ competency.name }} {% if is_self_eval %}(Autoevaluación){% endif %}</h3>
       <div class="text-muted">{{ employee }} · {{ cycle.name }} · Requerido hasta nivel {{ required_level }}</div>
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Volver</a>
   </div>
+  {% if is_self_eval %}
+    <div class="alert alert-info">Tu autoevaluación es informativa y no modifica el score oficial.</div>
+  {% endif %}
   {% if missing_level %}
   <p><strong>⚠ Configuración incompleta:</strong> el nivel {{ missing_level }} no tiene comportamientos configurados. Contacta con HR/Admin.</p>
   {% endif %}
@@ -39,7 +42,8 @@
         {% with lvl=l.level.level %}
         <div class="accordion-item js-level {% if l.locked_initial %}opacity-75{% endif %}"
              data-level="{{ lvl }}"
-             data-initial-locked="{% if l.locked_initial %}1{% else %}0{% endif %}">
+             data-initial-locked="{% if l.locked_initial %}1{% else %}0{% endif %}"
+             data-missing-config="{% if l.missing_config %}1{% else %}0{% endif %}">
           <h2 class="accordion-header" id="heading-{{ lvl }}">
             <button class="accordion-button {% if l.locked_initial %}collapsed{% endif %}"
                     type="button"
@@ -94,6 +98,11 @@
                     {% with current=rating_map|get:ind.id|default:1 %}
                     <div class="d-flex flex-column flex-md-row justify-content-between gap-2 py-2 border-bottom">
                       <div class="me-3">{{ ind.text }}</div>
+                      {% if not is_self_eval %}
+                        <div class="text-muted small">
+                          Auto: {% with self_val=self_rating_map|get:ind.id %}{% if self_val %}{{ self_val|rating_label }}{% else %}Sin autoevaluación{% endif %}{% endwith %}
+                        </div>
+                      {% endif %}
 
                       <div class="btn-group btn-group-sm" role="group" aria-label="rating">
                         <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
@@ -150,10 +159,14 @@
   function updateStatusBadge(lvlEl, lvl, achieved, unlockedMax, locked) {
     const badge = lvlEl.querySelector(`.js-status-badge[data-level="${lvl}"]`);
     if (!badge) return;
+    const missingConfig = lvlEl.dataset.missingConfig === "1";
 
     badge.className = "badge js-status-badge"; // reset limpio
 
-    if (lvl <= achieved) {
+    if (missingConfig) {
+      badge.classList.add("text-bg-light", "text-dark", "border");
+      badge.textContent = "Sin configurar";
+    } else if (lvl <= achieved) {
       badge.classList.add("text-bg-success");
       badge.textContent = "Completado";
     } else if (lvl === unlockedMax) {
@@ -182,6 +195,7 @@
 
       const radios = Array.from(lvlEl.querySelectorAll("input.js-rating[type=radio]"));
       const indIds = Array.from(new Set(radios.map(r => r.dataset.ind)));
+      const missingConfig = lvlEl.dataset.missingConfig === "1";
 
       const total = indIds.length;
       let passed = 0;
@@ -194,7 +208,12 @@
       const prog = lvlEl.querySelector(`.js-progress[data-level="${lvl}"]`);
       if (prog) prog.textContent = `${passed}/${total}`;
 
-      const completed = (total === 0) || (passed === total);
+      if (missingConfig || total === 0) {
+        unlockedMax = lvl;
+        break;
+      }
+
+      const completed = (passed === total);
       if (completed) {
         achieved = lvl;
         unlockedMax = Math.min(lvl + 1, requiredLevel);

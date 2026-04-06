@@ -15,13 +15,36 @@
 <body class="talentmap-body">
   <header class="talentmap-header">
     <div class="container">
-      <div class="d-flex justify-content-between align-items-center py-3">
-        <a href="{% url 'home' %}" class="talentmap-brand">TalentMap</a>
-        <nav class="d-flex align-items-center gap-3">
+      <div class="d-flex justify-content-between align-items-center py-3 gap-3 flex-wrap">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <a href="{% url 'home' %}" class="talentmap-brand">TalentMap</a>
           {% if user.is_authenticated %}
-            {% if is_hr %}
-              <a class="btn btn-outline-primary btn-sm" href="{% url 'invite_user' %}">Invitar</a>
-              <a class="btn btn-outline-primary btn-sm" href="{% url 'config' %}">Config</a>
+            <div class="d-flex gap-2 flex-wrap">
+              <a class="btn btn-sm btn-light border" href="{% url 'eval_home' %}">Inicio</a>
+              <a class="btn btn-sm btn-light border" href="{% url 'team_overview' %}">Equipo</a>
+              {% if is_hr %}
+                <a class="btn btn-sm btn-light border" href="{% url 'nine_box' %}">9-Box</a>
+                <a class="btn btn-sm btn-light border" href="{% url 'invite_user' %}">Invitaciones</a>
+                <a class="btn btn-sm btn-light border" href="{% url 'config' %}">Configuración</a>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+        <nav class="d-flex align-items-center gap-2 flex-wrap">
+          {% if user.is_authenticated %}
+            {% if all_cycles %}
+              <form method="post" action="{% url 'set_cycle' %}" class="d-flex align-items-center gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <select name="cycle_id" class="form-select form-select-sm">
+                  {% for c in all_cycles %}
+                    <option value="{{ c.id }}" {% if current_cycle and current_cycle.id == c.id %}selected{% endif %}>
+                      {{ c.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" type="submit">Cambiar ciclo</button>
+              </form>
             {% endif %}
             <span class="text-muted small">{{ user.get_full_name|default:user.username }}</span>
             <a class="btn btn-outline-secondary btn-sm" href="{% url 'logout' %}">Salir</a>
@@ -35,7 +58,7 @@
     {% if messages %}
       <div class="container py-2">
         {% for message in messages %}
-          <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+          <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags %}{{ message.tags }}{% else %}info{% endif %} alert-dismissible fade show" role="alert">
             {{ message }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
           </div>

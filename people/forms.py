@@ -20,7 +20,7 @@ class InviteForm(forms.Form):
     )
     email = forms.EmailField(
         label="Correo electrónico",
-        required=True,
+        required=False,
         widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "nombre@empresa.com"}),
     )
     department = forms.ModelChoiceField(
@@ -42,6 +42,11 @@ class InviteForm(forms.Form):
         empty_label="Sin superior",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+    create_internal = forms.BooleanField(
+        label="Crear colaborador interno (sin login)",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -59,6 +64,9 @@ class InviteForm(forms.Form):
     def clean(self):
         data = super().clean()
         email = (data.get("email") or "").strip().lower()
+        create_internal = data.get("create_internal")
+        if not create_internal and not email:
+            self.add_error("email", "El correo electrónico es obligatorio para enviar invitación.")
         data["email"] = email
         return data
 

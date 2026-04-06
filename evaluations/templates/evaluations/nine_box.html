@@ -67,7 +67,37 @@
         {% endfor %}
       </select>
       <button class="btn btn-primary">Filtrar</button>
+      <a class="btn btn-outline-secondary" href="{% url 'nine_box' %}">Limpiar</a>
+      <a class="btn btn-outline-secondary" href="{% url 'eval_home' %}">Volver</a>
     </form>
+  </div>
+
+  <div class="card p-3 mb-3">
+    <form method="post" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-md-4">
+        <label class="form-label mb-1">Eje cualitativo</label>
+        <select class="form-select" name="qualitative_axis_method">
+          {% for value, label in qualitative_axis_choices %}
+            <option value="{{ value }}" {% if talentmap_settings.qualitative_axis_method == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label mb-1">Top: mínimo por encima</label>
+        <input type="number" min="1" class="form-control" name="top_min_above" value="{{ talentmap_settings.top_min_above }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label mb-1">Intermedio: máximo por debajo</label>
+        <input type="number" min="0" class="form-control" name="middle_max_below" value="{{ talentmap_settings.middle_max_below }}">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-outline-primary w-100">Aplicar</button>
+      </div>
+    </form>
+    <div class="text-muted small mt-2">
+      Regla Tercios: Top = 0 por debajo y al menos 1 por encima; Intermedio = balance (por encima - por debajo) >= 0 con límites; Bajo = resto.
+    </div>
   </div>
 
   <div class="ninebox-map">
@@ -99,8 +129,8 @@
                      data-cnt="{{ s.quantitative_score }}"
                      data-box="{{ s.box_label }}"
                      data-can-edit="{% if s.employee.id in editable_employee_ids %}1{% endif %}"
-                     data-edit-qual-url="{% url 'edit_qualitative' s.employee.id %}"
-                     data-edit-quant-url="{% url 'competency_picker' s.employee.id %}"
+                     data-edit-qual-url="{% url 'competency_picker' s.employee.id %}"
+                     data-edit-quant-url="{% url 'edit_quantitative' s.employee.id %}"
                      data-delete-url="{% url 'delete_employee' s.employee.id %}">
                   <div>
                     <div class="emp-name">{{ s.employee }}</div>

@@ -4,9 +4,11 @@ from django.contrib.auth.models import User
 from people.models import Department, Role, Employee
 from evaluations.models import EvaluationCycle
 from competencies.models import Competency, CompetencyLevel, LevelIndicator, RoleCompetencyRequirement
-from playwright.sync_api import sync_playwright
+playwright = pytest.importorskip("playwright.sync_api")
+sync_playwright = playwright.sync_playwright
 
 @pytest.mark.django_db
+@pytest.mark.e2e
 def test_levels_lock_and_unlock(live_server):
     dep = Department.objects.create(name="Tech")
     role = Role.objects.create(name="Dev", department=dep)

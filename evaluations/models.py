@@ -122,3 +122,48 @@ class EmployeeCycleScore(models.Model):
 def remember_cycle(cycle: EvaluationCycle) -> str:
     # helper pequeño para evitar __str__ muy largo si lo editas a menudo
     return cycle.name
+
+
+class QualitativeIndicatorSelfAssessment(models.Model):
+    """Autoevaluación cualitativa: visible para superior, sin impacto en score oficial."""
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="qual_self_assessments")
+    cycle = models.ForeignKey(EvaluationCycle, on_delete=models.CASCADE, related_name="qual_self_assessments")
+    indicator = models.ForeignKey(LevelIndicator, on_delete=models.CASCADE, related_name="self_assessments")
+    rating = models.PositiveSmallIntegerField(choices=BehaviorRating.choices, default=BehaviorRating.NEVER)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("employee", "cycle", "indicator")]
+        indexes = [models.Index(fields=["employee", "cycle"])]
+
+    def clean(self):
+        if self.rating < 1 or self.rating > 4:
+            raise ValidationError({"rating": "Rating inválido."})
+
+
+class QualitativeAxisMethod(models.TextChoices):
+    THIRDS = "THIRDS", "Tercios por reglas del perfil ideal"
+    GAUSSIAN = "GAUSSIAN", "Campana de Gauss (por score cualitativo)"
+
+
+class TalentMapSettings(models.Model):
+    """
+    Configuración global del 9-Box.
+    Por ahora solo afecta al eje cualitativo.
+    """
+    qualitative_axis_method = models.CharField(
+        max_length=20,
+        choices=QualitativeAxisMethod.choices,
+        default=QualitativeAxisMethod.THIRDS,
+    )
+    top_min_above = models.PositiveSmallIntegerField(default=1)
+    middle_max_below = models.PositiveSmallIntegerField(default=3)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return "Talent Map Settings"

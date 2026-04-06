@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from competencies.models import Competency, CompetencyLevel, RoleCompetencyRequirement
-from evaluations.forms import GoalFormSet
+from evaluations.forms import CycleCreateForm, GoalFormSet
 from evaluations.models import (
     EmployeeCycleScore,
     EvaluationCycle,
@@ -80,7 +80,37 @@ def _cycle_or_admin_redirect(request):
     cycle = get_current_cycle(request)
     if cycle:
         return cycle, None
+    if is_hr(request.user):
+        return None, redirect("cycle_setup")
     return None, redirect("/admin/")
+
+
+def _cycle_is_closed(cycle: EvaluationCycle) -> bool:
+    return cycle.end_date < timezone.localdate()
+
+
+@login_required
+def cycle_setup(request):
+    if not is_hr(request.user):
+        return render(request, "evaluations/forbidden.html", status=403)
+
+    form = CycleCreateForm(request.POST or None)
+    cycles = EvaluationCycle.objects.order_by("-end_date", "-start_date")
+
+    if request.method == "POST" and form.is_valid():
+        name = form.cleaned_data["name"].strip()
+        end_date = form.cleaned_data["end_date"]
+        start_date = timezone.localdate()
+
+        if end_date < start_date:
+            form.add_error("end_date", "La fecha de término no puede ser anterior a hoy.")
+        else:
+            cycle = EvaluationCycle.objects.create(name=name, start_date=start_date, end_date=end_date)
+            request.session[SESSION_CYCLE_KEY] = cycle.id
+            messages.success(request, "Nuevo ciclo creado correctamente.")
+            return redirect("eval_home")
+
+    return render(request, "evaluations/cycle_setup.html", {"form": form, "cycles": cycles})
 
 
 def _can_manage_employee(user, employee: Employee) -> bool:
@@ -92,6 +122,8 @@ def cycle_home(request):
     cycle, fallback = _cycle_or_admin_redirect(request)
     if fallback:
         return fallback
+
+    cycle_locked = _cycle_is_closed(cycle)
 
     try:
         me = request.user.employee
@@ -116,6 +148,7 @@ def cycle_home(request):
             "is_hr": hr,
             "can_edit_me": can_edit_me,
             "can_self_evaluate": can_self_evaluate,
+            "cycle_locked": cycle_locked,
         },
     )
 
@@ -132,7 +165,11 @@ def team_overview(request):
         emps = Employee.objects.filter(active=True).select_related("user", "role", "department").order_by("user__last_name")
 
     scores = {s.employee_id: s for s in EmployeeCycleScore.objects.filter(cycle=cycle, employee__in=emps)}
-    return render(request, "evaluations/team_overview.html", {"cycle": cycle, "employees": emps, "scores": scores})
+    return render(
+        request,
+        "evaluations/team_overview.html",
+        {"cycle": cycle, "employees": emps, "scores": scores, "cycle_locked": _cycle_is_closed(cycle)},
+    )
 
 
 @login_required
@@ -144,6 +181,7 @@ def edit_quantitative(request, employee_id):
     if fallback:
         return fallback
 
+    cycle_locked = _cycle_is_closed(cycle)
     emp = get_object_or_404(Employee, id=employee_id)
 
     allowed = _can_manage_employee(request.user, emp)
@@ -153,6 +191,10 @@ def edit_quantitative(request, employee_id):
     qs = QuantitativeGoal.objects.filter(employee=emp, cycle=cycle).order_by("id")
 
     if request.method == "POST":
+        if cycle_locked:
+            messages.error(request, "Este ciclo está cerrado. Solo se permite consulta.")
+            return redirect("edit_quantitative", employee_id=employee_id)
+
         formset = GoalFormSet(request.POST, queryset=qs)
         if formset.is_valid():
             instances = formset.save(commit=False)
@@ -173,10 +215,15 @@ def edit_quantitative(request, employee_id):
     else:
         formset = GoalFormSet(queryset=qs)
 
+    if cycle_locked:
+        for form in formset.forms:
+            for field in form.fields.values():
+                field.disabled = True
+
     return render(
         request,
         "evaluations/edit_quantitative.html",
-        {"cycle": cycle, "employee": emp, "formset": formset},
+        {"cycle": cycle, "employee": emp, "formset": formset, "cycle_locked": cycle_locked},
     )
 
 
@@ -189,6 +236,7 @@ def competency_picker(request, employee_id):
     if fallback:
         return fallback
 
+    cycle_locked = _cycle_is_closed(cycle)
     emp = get_object_or_404(Employee, id=employee_id)
     is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
     allowed = _can_manage_employee(request.user, emp) or is_self_eval
@@ -218,7 +266,13 @@ def competency_picker(request, employee_id):
     return render(
         request,
         "evaluations/competency_picker.html",
-        {"cycle": cycle, "employee": emp, "req_rows": req_rows, "is_self_eval": is_self_eval},
+        {
+            "cycle": cycle,
+            "employee": emp,
+            "req_rows": req_rows,
+            "is_self_eval": is_self_eval,
+            "cycle_locked": cycle_locked,
+        },
     )
 
 
@@ -259,6 +313,7 @@ def edit_qualitative(request, employee_id, competency_id):
     if fallback:
         return fallback
 
+    cycle_locked = _cycle_is_closed(cycle)
     emp = get_object_or_404(Employee, id=employee_id)
     comp = get_object_or_404(Competency, id=competency_id)
 
@@ -301,6 +356,10 @@ def edit_qualitative(request, employee_id, competency_id):
     current_level = unlocked_max_level
 
     if request.method == "POST":
+        if cycle_locked:
+            messages.error(request, "Este ciclo está cerrado. Solo se permite consulta.")
+            return redirect("edit_qualitative_competency", employee_id=employee_id, competency_id=competency_id)
+
         with transaction.atomic():
             post_rating_map = dict(rating_map)
             dynamic_unlocked_max = unlocked_max_level
@@ -377,6 +436,7 @@ def edit_qualitative(request, employee_id, competency_id):
             "PASS_RATING": PASS_RATING,
             "is_self_eval": is_self_eval,
             "self_rating_map": self_rating_map,
+            "cycle_locked": cycle_locked,
         },
     )
 

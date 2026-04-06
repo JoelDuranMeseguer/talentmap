@@ -6,6 +6,7 @@ from .models import (
     TalentMapSettings,
     QualitativeIndicatorAssessment,
     QualitativeAxisMethod,
+    QualitativeIndicatorAssessment,
     QualitativeIndicatorSelfAssessment,
     QuantitativeGoal,
 )

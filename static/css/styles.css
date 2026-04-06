@@ -321,6 +321,14 @@
   background: rgba(255, 255, 255, 0.18);
 }
 
+.talentmap-header .btn-light.border {
+  background: #ffffff;
+}
+
+.talentmap-header .btn-light.border:hover {
+  background: #f1f5f9;
+}
+
 .talentmap-main {
   flex: 1;
 }

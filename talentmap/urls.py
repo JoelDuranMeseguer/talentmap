@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from evaluations.views import home
+from competencies.views import role_profile_config, download_role_profile_template
 from people.views import (
     logout_confirm, invite_user, register_with_token, config,
     resend_invitation, cancel_invitation,
@@ -18,6 +19,8 @@ urlpatterns = [
     path("accounts/invite/sample-excel/", download_sample_excel, name="download_sample_excel"),
     path("accounts/invite/import-excel/", import_users_excel, name="import_users_excel"),
     path("config/", config, name="config"),
+    path("config/role-profile/", role_profile_config, name="role_profile_config"),
+    path("config/role-profile/template/", download_role_profile_template, name="download_role_profile_template"),
     path("accounts/register/", register_with_token, name="register"),
     path("", home, name="home"),
     path("evaluations/", include("evaluations.urls")),

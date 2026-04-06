@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -11,6 +11,7 @@ from evaluations.models import (
     EmployeeCycleScore,
     EvaluationCycle,
     QualitativeIndicatorAssessment,
+    QualitativeIndicatorSelfAssessment,
     QuantitativeGoal,
 )
 from evaluations.services.scoring import BOXES, PASS_RATING, recompute_cycle_scores, terciles_for_scores
@@ -20,7 +21,6 @@ from django.contrib import messages
 
 
 SESSION_CYCLE_KEY = "eval_current_cycle_id"
-from django.shortcuts import redirect
 
 @login_required
 def home(request):
@@ -74,11 +74,22 @@ def _recompute_company(cycle: EvaluationCycle):
     recompute_cycle_scores(cycle, Employee.objects.filter(active=True))
 
 
+def _cycle_or_admin_redirect(request):
+    cycle = get_current_cycle(request)
+    if cycle:
+        return cycle, None
+    return None, redirect("/admin/")
+
+
+def _can_manage_employee(user, employee: Employee) -> bool:
+    return is_hr(user) or managed_employees_qs(user).filter(id=employee.id).exists()
+
+
 @login_required
 def cycle_home(request):
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     try:
         me = request.user.employee
@@ -90,6 +101,7 @@ def cycle_home(request):
     hr = is_hr(request.user)
 
     can_edit_me = hr or (me.manager_id and me.manager.user_id == request.user.id)
+    can_self_evaluate = hasattr(request.user, "employee")
 
     return render(
         request,
@@ -101,15 +113,16 @@ def cycle_home(request):
             "is_manager": is_manager,
             "is_hr": hr,
             "can_edit_me": can_edit_me,
+            "can_self_evaluate": can_self_evaluate,
         },
     )
 
 
 @login_required
 def team_overview(request):
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     # Managers: solo reportes directos, HR: toda la empresa
     emps = managed_employees_qs(request.user).select_related("user", "role", "department").order_by("user__last_name")
@@ -125,13 +138,13 @@ def edit_quantitative(request, employee_id):
     """
     CUANTITATIVO = metas (pesos 100% + % completado)
     """
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     emp = get_object_or_404(Employee, id=employee_id)
 
-    allowed = is_hr(request.user) or managed_employees_qs(request.user).filter(id=emp.id).exists()
+    allowed = _can_manage_employee(request.user, emp)
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
@@ -158,7 +171,11 @@ def edit_quantitative(request, employee_id):
     else:
         formset = GoalFormSet(queryset=qs)
 
-    return render(request, "evaluations/edit_quantitative.html", {"cycle": cycle, "employee": emp, "formset": formset})
+    return render(
+        request,
+        "evaluations/edit_quantitative.html",
+        {"cycle": cycle, "employee": emp, "formset": formset},
+    )
 
 
 @login_required
@@ -166,22 +183,41 @@ def competency_picker(request, employee_id):
     """
     Selector de competencias (para editar CUALITATIVO).
     """
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     emp = get_object_or_404(Employee, id=employee_id)
-    allowed = is_hr(request.user) or managed_employees_qs(request.user).filter(id=emp.id).exists()
+    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
+    allowed = _can_manage_employee(request.user, emp) or is_self_eval
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
-    reqs = (
+    reqs = list(
         RoleCompetencyRequirement.objects.filter(role=emp.role)
         .select_related("competency")
         .order_by("competency__name")
     )
 
-    return render(request, "evaluations/competency_picker.html", {"cycle": cycle, "employee": emp, "reqs": reqs})
+    model_cls = QualitativeIndicatorSelfAssessment if is_self_eval else QualitativeIndicatorAssessment
+    req_rows = []
+    for req in reqs:
+        levels = (
+            CompetencyLevel.objects.filter(competency=req.competency, level__lte=req.required_level)
+            .prefetch_related("indicators")
+            .order_by("level")
+        )
+        indicator_ids = [ind.id for lvl in levels for ind in lvl.indicators.all()]
+        ratings = model_cls.objects.filter(employee=emp, cycle=cycle, indicator_id__in=indicator_ids)
+        rating_map = {a.indicator_id: int(a.rating) for a in ratings}
+        achieved_level, _, _ = _qual_progress(levels, rating_map, int(req.required_level))
+        req_rows.append({"req": req, "achieved_level": achieved_level})
+
+    return render(
+        request,
+        "evaluations/competency_picker.html",
+        {"cycle": cycle, "employee": emp, "req_rows": req_rows, "is_self_eval": is_self_eval},
+    )
 
 
 def _qual_progress(levels, rating_map, required_level):
@@ -217,14 +253,15 @@ def _qual_progress(levels, rating_map, required_level):
 @login_required
 def edit_qualitative(request, employee_id, competency_id):
     """ CUALITATIVO = competencias→niveles→comportamientos con escala Nunca/Casi nunca/Casi siempre/Siempre. """
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     emp = get_object_or_404(Employee, id=employee_id)
     comp = get_object_or_404(Competency, id=competency_id)
 
-    allowed = is_hr(request.user) or managed_employees_qs(request.user).filter(id=emp.id).exists()
+    is_self_eval = hasattr(request.user, "employee") and request.user.employee.id == emp.id
+    allowed = _can_manage_employee(request.user, emp) or is_self_eval
     if not allowed:
         return render(request, "evaluations/forbidden.html", status=403)
 
@@ -241,21 +278,36 @@ def edit_qualitative(request, employee_id, competency_id):
     for lvl in levels:
         indicator_ids.extend([i.id for i in lvl.indicators.all()])
 
-    existing = QualitativeIndicatorAssessment.objects.filter(
-        employee=emp, cycle=cycle, indicator_id__in=indicator_ids
-    )
+    model_cls = QualitativeIndicatorSelfAssessment if is_self_eval else QualitativeIndicatorAssessment
+
+    existing = model_cls.objects.filter(employee=emp, cycle=cycle, indicator_id__in=indicator_ids)
     rating_map = {a.indicator_id: int(a.rating) for a in existing}
+
+    self_rating_map = {}
+    if not is_self_eval:
+        official_ids = set(
+            QualitativeIndicatorAssessment.objects.filter(
+                employee=emp, cycle=cycle, indicator_id__in=indicator_ids
+            ).values_list("indicator_id", flat=True)
+        )
+        self_existing = QualitativeIndicatorSelfAssessment.objects.filter(
+            employee=emp, cycle=cycle, indicator_id__in=indicator_ids
+        )
+        self_rating_map = {a.indicator_id: int(a.rating) for a in self_existing if a.indicator_id in official_ids}
 
     achieved_level, unlocked_max_level, missing_level = _qual_progress(levels, rating_map, required_level)
     current_level = unlocked_max_level
 
     if request.method == "POST":
         with transaction.atomic():
+            post_rating_map = dict(rating_map)
+            dynamic_unlocked_max = unlocked_max_level
             for lvl in levels:
                 # Enforce server-side locking: no aceptar niveles bloqueados.
-                if lvl.level > unlocked_max_level:
+                if lvl.level > dynamic_unlocked_max:
                     continue
 
+                inds = list(lvl.indicators.all())
                 for ind in lvl.indicators.all():
                     raw = request.POST.get(f"ind_{ind.id}")
                     try:
@@ -264,16 +316,29 @@ def edit_qualitative(request, employee_id, competency_id):
                         rating = 1
                     rating = max(1, min(4, rating))
 
-                    QualitativeIndicatorAssessment.objects.update_or_create(
+                    model_cls.objects.update_or_create(
                         employee=emp,
                         cycle=cycle,
                         indicator=ind,
-                        defaults={"rating": rating, "assessed_by": request.user},
+                        defaults={"rating": rating, **({} if is_self_eval else {"assessed_by": request.user})},
                     )
+                    post_rating_map[ind.id] = rating
 
-        _recompute_company(cycle)
-        messages.success(request, "Cualitativo guardado.")
-        return redirect("edit_qualitative", employee_id=emp.id, competency_id=comp.id)
+                # Recalcula desbloqueo dentro del mismo submit para no obligar a guardar entre niveles.
+                if inds:
+                    passed = sum(1 for ind in inds if post_rating_map.get(ind.id, 1) >= PASS_RATING)
+                    if passed == len(inds):
+                        dynamic_unlocked_max = min(lvl.level + 1, required_level)
+                    else:
+                        dynamic_unlocked_max = lvl.level
+                        break
+
+        if is_self_eval:
+            messages.success(request, "Autoevaluación cualitativa guardada.")
+        else:
+            _recompute_company(cycle)
+            messages.success(request, "Cualitativo guardado.")
+        return redirect("edit_qualitative_competency", employee_id=emp.id, competency_id=comp.id)
 
     # GET render
     levels_ctx = []
@@ -308,6 +373,8 @@ def edit_qualitative(request, employee_id, competency_id):
             "unlocked_max_level": unlocked_max_level,
             "missing_level": missing_level,
             "PASS_RATING": PASS_RATING,
+            "is_self_eval": is_self_eval,
+            "self_rating_map": self_rating_map,
         },
     )
 
@@ -321,9 +388,9 @@ def nine_box_dashboard(request):
     if not is_hr(request.user):
         return render(request, "evaluations/forbidden.html", status=403)
 
-    cycle = get_current_cycle(request)
-    if not cycle:
-        return redirect("/admin/")
+    cycle, fallback = _cycle_or_admin_redirect(request)
+    if fallback:
+        return fallback
 
     dept_id = request.GET.get("department")
     role_id = request.GET.get("role")

@@ -122,3 +122,20 @@ class EmployeeCycleScore(models.Model):
 def remember_cycle(cycle: EvaluationCycle) -> str:
     # helper pequeño para evitar __str__ muy largo si lo editas a menudo
     return cycle.name
+
+
+class QualitativeIndicatorSelfAssessment(models.Model):
+    """Autoevaluación cualitativa: visible para superior, sin impacto en score oficial."""
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="qual_self_assessments")
+    cycle = models.ForeignKey(EvaluationCycle, on_delete=models.CASCADE, related_name="qual_self_assessments")
+    indicator = models.ForeignKey(LevelIndicator, on_delete=models.CASCADE, related_name="self_assessments")
+    rating = models.PositiveSmallIntegerField(choices=BehaviorRating.choices, default=BehaviorRating.NEVER)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("employee", "cycle", "indicator")]
+        indexes = [models.Index(fields=["employee", "cycle"])]
+
+    def clean(self):
+        if self.rating < 1 or self.rating > 4:
+            raise ValidationError({"rating": "Rating inválido."})

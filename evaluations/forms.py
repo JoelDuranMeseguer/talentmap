@@ -50,3 +50,15 @@ GoalFormSet = modelformset_factory(
     can_delete=True,
     formset=BaseGoalFormSet,
 )
+
+
+class CycleCreateForm(forms.Form):
+    name = forms.CharField(
+        max_length=120,
+        label="Nombre del ciclo",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej: Ciclo 2027"}),
+    )
+    end_date = forms.DateField(
+        label="Fecha fin",
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )

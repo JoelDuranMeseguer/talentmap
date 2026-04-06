@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path("", views.cycle_home, name="eval_home"),
+    path("cycle-setup/", views.cycle_setup, name="cycle_setup"),
     path("set-cycle/", views.set_cycle, name="set_cycle"),
     path("nine-box/", views.nine_box_dashboard, name="nine_box"),
     path("team/", views.team_overview, name="team_overview"),

@@ -11,6 +11,10 @@
     <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Ver equipo</a>
   </div>
 
+  {% if cycle_locked %}
+    <div class="alert alert-warning">Este ciclo está cerrado. Solo se permite consulta.</div>
+  {% endif %}
+
   <div class="row g-3">
     <div class="col-lg-6">
       <div class="card p-4">
@@ -30,10 +34,10 @@
           <hr class="my-4">
           <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-outline-primary" href="{% url 'edit_quantitative' me.id %}">
-              Editar metas cuantitativas
+              {% if cycle_locked %}Ver metas cuantitativas{% else %}Editar metas cuantitativas{% endif %}
             </a>
             <a class="btn btn-outline-primary" href="{% url 'competency_picker' employee_id=me.id %}">
-              Editar competencias cualitativas
+              {% if cycle_locked %}Ver competencias cualitativas{% else %}Editar competencias cualitativas{% endif %}
             </a>
           </div>
         {% else %}

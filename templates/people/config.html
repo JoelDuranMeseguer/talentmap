@@ -1,18 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Configuración · TalentMap{% endblock %}
 {% block content %}
-<div class="container py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="mb-0">Configuración</h3>
+<div class="tm-page-head d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="tm-page-title mb-1">Configuración</h1>
+      <p class="tm-page-subtitle mb-0">Administra estructura organizativa y catálogos base.</p>
+    </div>
     <div class="d-flex gap-2">
-      <a class="btn btn-outline-primary" href="{% url 'role_profile_config' %}">Perfil ideal por rol</a>
+      <a class="btn btn-outline-primary" href="{% url 'role_profile_config' %}"><i class="bi bi-grid-3x3-gap me-1"></i> Perfil ideal por rol</a>
       <a class="btn btn-outline-secondary" href="{% url 'home' %}">Volver</a>
     </div>
-  </div>
+</div>
 
   <div class="row">
     <div class="col-lg-6">
-      <div class="card p-4 mb-4">
+      <div class="tm-panel mb-4">
         <h5 class="mb-3">Nuevo departamento</h5>
         <p class="text-muted small">Los departamentos se usan para organizar roles y reportes.</p>
         <form method="post">
@@ -28,7 +30,7 @@
           <button type="submit" class="btn btn-primary">Crear departamento</button>
         </form>
       </div>
-      <div class="card p-4">
+      <div class="tm-panel">
         <h5 class="mb-3">Departamentos existentes</h5>
         {% if departments %}
           <ul class="list-group list-group-flush">
@@ -42,7 +44,7 @@
       </div>
     </div>
     <div class="col-lg-6">
-      <div class="card p-4 mb-4">
+      <div class="tm-panel mb-4">
         <h5 class="mb-3">Nuevo rol</h5>
         <p class="text-muted small">Cada rol debe pertenecer a un departamento.</p>
         <form id="add-role-form" method="post">
@@ -60,7 +62,7 @@
           <button type="submit" class="btn btn-primary">Crear rol</button>
         </form>
       </div>
-      <div class="card p-4">
+      <div class="tm-panel">
         <h5 class="mb-3">Roles existentes</h5>
         <ul id="roles-list" class="list-group list-group-flush">
           {% for r in roles %}
@@ -76,7 +78,6 @@
       </div>
     </div>
   </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}

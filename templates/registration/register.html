@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Crear cuenta · TalentMap{% endblock %}
 {% block content %}
-<div class="container">
+<div class="container talentmap-login-wrapper">
   <div class="talentmap-auth-container">
-    <div class="card talentmap-auth-card">
-      <h3 class="mb-3">Crear cuenta</h3>
+    <div class="tm-panel talentmap-auth-card">
+      <h3 class="mb-2">Crear cuenta</h3>
       <p class="text-muted small mb-4">
         Has sido invitado como {{ invitation.role.name }} en {{ invitation.department.name }}.
       </p>
@@ -40,7 +40,7 @@
           {% if form.password2.errors %}<div class="text-danger small">{{ form.password2.errors }}</div>{% endif %}
         </div>
         <input type="hidden" name="email" value="{{ invitation.email }}">
-        <button type="submit" class="btn btn-primary w-100">Crear cuenta</button>
+        <button type="submit" class="btn btn-primary w-100 btn-lg">Crear cuenta</button>
       </form>
     </div>
   </div>

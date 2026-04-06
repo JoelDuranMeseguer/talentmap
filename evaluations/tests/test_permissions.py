@@ -23,3 +23,4 @@ class NineBoxPermissionTests(TestCase):
         self.client.login(username="admin", password="pass")
         resp = self.client.get(reverse("nine_box"))
         self.assertNotEqual(resp.status_code, 403)
+        self.assertContains(resp, 'id="emp-delete-form"')

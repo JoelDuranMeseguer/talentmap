@@ -1,10 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Entrar · TalentMap{% endblock %}
 {% block content %}
-<div class="container">
-  <div class="talentmap-auth-container">
+<div class="container talentmap-login-wrapper">
+  <div class="talentmap-login-shell{% if branding and branding.login_background_url %} has-company-bg{% endif %}"
+       {% if branding and branding.login_background_url %}style="background-image: linear-gradient(120deg, rgba(2,6,23,.70), rgba(15,23,42,.45)), url('{{ branding.login_background_url }}');"{% endif %}>
+    <div class="talentmap-login-side d-none d-lg-flex">
+      <div>
+        <div class="eyebrow">PLATAFORMA DE TALENTO</div>
+        <h2>{{ branding.company_name|default:"TalentMap" }}</h2>
+        <p>Gestiona desempeño, potencial y desarrollo profesional con una experiencia visual moderna y clara.</p>
+      </div>
+    </div>
     <div class="card talentmap-auth-card">
-      <h3 class="mb-3">Entrar</h3>
+      <h3 class="mb-2">Bienvenido</h3>
+      <p class="text-muted mb-3">Accede para continuar.</p>
       {% if form.errors %}
         <div class="alert alert-danger">Usuario o contraseña incorrectos.</div>
       {% endif %}
@@ -12,13 +21,13 @@
         {% csrf_token %}
         <div class="mb-3">
           <label class="form-label" for="id_username">Usuario</label>
-          <input type="text" name="username" class="form-control" id="id_username" autofocus required>
+          <input type="text" name="username" class="form-control form-control-lg" id="id_username" autofocus required>
         </div>
         <div class="mb-3">
           <label class="form-label" for="id_password">Contraseña</label>
-          <input type="password" name="password" class="form-control" id="id_password" required>
+          <input type="password" name="password" class="form-control form-control-lg" id="id_password" required>
         </div>
-        <button type="submit" class="btn btn-primary w-100">Entrar</button>
+        <button type="submit" class="btn btn-primary btn-lg w-100">Entrar</button>
       </form>
     </div>
   </div>

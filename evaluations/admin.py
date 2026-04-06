@@ -3,6 +3,9 @@ from django.contrib import admin
 from .models import (
     EmployeeCycleScore,
     EvaluationCycle,
+    TalentMapSettings,
+    QualitativeIndicatorAssessment,
+    QualitativeAxisMethod,
     QualitativeIndicatorAssessment,
     QualitativeIndicatorSelfAssessment,
     QuantitativeGoal,
@@ -38,3 +41,19 @@ class EmployeeCycleScoreAdmin(admin.ModelAdmin):
 class QualitativeIndicatorSelfAssessmentAdmin(admin.ModelAdmin):
     list_display = ("employee", "cycle", "indicator", "rating", "updated_at")
     list_filter = ("cycle", "rating")
+
+
+@admin.register(TalentMapSettings)
+class TalentMapSettingsAdmin(admin.ModelAdmin):
+    list_display = ("id", "qualitative_axis_method", "top_min_above", "middle_max_below", "updated_at")
+
+    def has_add_permission(self, request):
+        # Singleton (id=1)
+        if TalentMapSettings.objects.exists():
+            return False
+        return super().has_add_permission(request)
+
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        if db_field.name == "qualitative_axis_method":
+            kwargs["choices"] = QualitativeAxisMethod.choices
+        return super().formfield_for_choice_field(db_field, request, **kwargs)

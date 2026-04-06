@@ -2,20 +2,19 @@
 {% block title %}Invitar usuarios · TalentMap{% endblock %}
 
 {% block content %}
-<div class="container">
-  <div class="hero-card d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 p-4">
+<div class="tm-page-head d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
-      <h3 class="mb-0">Invitar usuarios</h3>
-      <div class="text-muted small">Gestiona invitaciones e importa colaboradores de forma segura desde Excel.</div>
+      <h1 class="tm-page-title mb-1">Invitar usuarios</h1>
+      <p class="tm-page-subtitle mb-0">Gestiona invitaciones e importa colaboradores de forma segura desde Excel.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      <a class="btn btn-outline-success" href="{% url 'download_sample_excel' %}">Descargar plantilla Excel</a>
+      <a class="btn btn-outline-success" href="{% url 'download_sample_excel' %}"><i class="bi bi-file-earmark-arrow-down me-1"></i> Plantilla Excel</a>
       <a class="btn btn-outline-secondary" href="{% url 'home' %}">Volver</a>
     </div>
   </div>
 
   <!-- Importar Excel -->
-  <div class="card p-4 shadow-sm border-0 mb-4 rounded-4">
+  <div class="tm-panel mb-4">
     <h5 class="mb-2">Importar desde Excel</h5>
     <p class="text-muted small mb-3">Sube un archivo con columnas: nombre, apellido, email, departamento, rol y manager_email. El email es obligatorio.</p>
     <form method="post" action="{% url 'import_users_excel' %}" enctype="multipart/form-data" class="d-flex gap-2 align-items-end flex-wrap">
@@ -23,14 +22,14 @@
       <div class="flex-grow-1">
         <input type="file" name="excel_file" accept=".xlsx,.xls" class="form-control" required>
       </div>
-      <button type="submit" class="btn btn-primary">Importar</button>
+      <button type="submit" class="btn btn-primary"><i class="bi bi-upload me-1"></i> Importar</button>
     </form>
   </div>
 
   <div class="row g-3">
     <!-- NUEVA INVITACIÓN -->
     <div class="col-lg-5">
-      <div class="card p-4 shadow-sm border-0 rounded-4 h-100">
+      <div class="tm-panel h-100">
         <div class="d-flex justify-content-between align-items-start mb-3">
           <div>
             <h5 class="mb-1">Nueva invitación</h5>
@@ -107,7 +106,7 @@
 
     <!-- PENDIENTES -->
     <div class="col-lg-7">
-      <div class="card p-4 shadow-sm border-0 rounded-4 h-100">
+      <div class="tm-panel h-100">
         <div class="d-flex justify-content-between align-items-start mb-3">
           <div>
             <h5 class="mb-1">Invitaciones pendientes</h5>
@@ -123,8 +122,8 @@
 
         {% if pending_invites %}
           <div class="table-responsive">
-            <table class="table align-middle mb-0">
-              <thead class="table-light">
+            <table class="table tm-data-table align-middle mb-0">
+              <thead>
                 <tr>
                   <th>Email</th>
                   <th>Departamento</th>
@@ -183,16 +182,6 @@
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-  .hero-card {
-    background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
-    border: 1px solid #e1e8f5;
-    border-radius: 1rem;
-  }
-</style>
 {% endblock %}
 
 {% block extra_js %}

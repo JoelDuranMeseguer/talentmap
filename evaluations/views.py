@@ -10,6 +10,8 @@ from evaluations.forms import CycleCreateForm, GoalFormSet
 from evaluations.models import (
     EmployeeCycleScore,
     EvaluationCycle,
+    TalentMapSettings,
+    QualitativeAxisMethod,
     QualitativeIndicatorAssessment,
     QualitativeIndicatorSelfAssessment,
     QuantitativeGoal,
@@ -452,6 +454,24 @@ def nine_box_dashboard(request):
     if fallback:
         return fallback
 
+    settings_obj = TalentMapSettings.get_solo()
+    if request.method == "POST":
+        method = request.POST.get("qualitative_axis_method")
+        if method in {QualitativeAxisMethod.THIRDS, QualitativeAxisMethod.GAUSSIAN}:
+            settings_obj.qualitative_axis_method = method
+
+        try:
+            settings_obj.top_min_above = max(1, int(request.POST.get("top_min_above", settings_obj.top_min_above)))
+            settings_obj.middle_max_below = max(0, int(request.POST.get("middle_max_below", settings_obj.middle_max_below)))
+        except (TypeError, ValueError):
+            messages.error(request, "Parámetros inválidos para la configuración del eje cualitativo.")
+            return redirect("nine_box")
+
+        settings_obj.save()
+        _recompute_company(cycle)
+        messages.success(request, "Configuración del mapa de talento actualizada.")
+        return redirect("nine_box")
+
     dept_id = request.GET.get("department")
     role_id = request.GET.get("role")
 
@@ -488,6 +508,7 @@ def nine_box_dashboard(request):
         )
 
     roles_qs = Role.objects.filter(department_id=dept_id).order_by("name") if dept_id else Role.objects.none()
+    editable_employee_ids = set(base_emps.values_list("id", flat=True))
 
     return render(
         request,
@@ -499,5 +520,9 @@ def nine_box_dashboard(request):
             "roles": roles_qs,
             "dept_id": dept_id or "",
             "role_id": role_id or "",
+            "talentmap_settings": settings_obj,
+            "qualitative_axis_choices": QualitativeAxisMethod.choices,
+            "editable_employee_ids": editable_employee_ids,
+            "is_hr": is_hr(request.user),
         },
     )

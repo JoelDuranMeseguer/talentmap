@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Department, Employee, Invitation, Role
+from .models import BrandingSettings, Department, Employee, Invitation, Role
 
 
 @admin.register(Department)
@@ -27,3 +27,13 @@ class InvitationAdmin(admin.ModelAdmin):
     list_display = ("email", "department", "role", "created_by", "created_at", "expires_at", "used_at")
     list_filter = ("department", "role")
     search_fields = ("email",)
+
+
+@admin.register(BrandingSettings)
+class BrandingSettingsAdmin(admin.ModelAdmin):
+    list_display = ("id", "company_name", "primary_color", "updated_at")
+
+    def has_add_permission(self, request):
+        if BrandingSettings.objects.exists():
+            return False
+        return super().has_add_permission(request)

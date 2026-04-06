@@ -139,3 +139,31 @@ class QualitativeIndicatorSelfAssessment(models.Model):
     def clean(self):
         if self.rating < 1 or self.rating > 4:
             raise ValidationError({"rating": "Rating inválido."})
+
+
+class QualitativeAxisMethod(models.TextChoices):
+    THIRDS = "THIRDS", "Tercios por reglas del perfil ideal"
+    GAUSSIAN = "GAUSSIAN", "Campana de Gauss (por score cualitativo)"
+
+
+class TalentMapSettings(models.Model):
+    """
+    Configuración global del 9-Box.
+    Por ahora solo afecta al eje cualitativo.
+    """
+    qualitative_axis_method = models.CharField(
+        max_length=20,
+        choices=QualitativeAxisMethod.choices,
+        default=QualitativeAxisMethod.THIRDS,
+    )
+    top_min_above = models.PositiveSmallIntegerField(default=1)
+    middle_max_below = models.PositiveSmallIntegerField(default=3)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return "Talent Map Settings"

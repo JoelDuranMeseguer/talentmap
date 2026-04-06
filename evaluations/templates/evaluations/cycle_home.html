@@ -2,73 +2,74 @@
 {% block title %}Panel · {{ cycle.name }} · TalentMap{% endblock %}
 
 {% block content %}
-<div class="container">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h3 class="mb-1">Panel de evaluación</h3>
-      <div class="text-muted">{{ cycle.name }}</div>
-    </div>
-    <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Ver equipo</a>
+<div class="tm-page-head d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h1 class="tm-page-title mb-1">Panel de evaluación</h1>
+    <p class="tm-page-subtitle mb-0">{{ cycle.name }}</p>
   </div>
+  <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}"><i class="bi bi-people me-1"></i> Ver equipo</a>
+</div>
 
-  {% if cycle_locked %}
-    <div class="alert alert-warning">Este ciclo está cerrado. Solo se permite consulta.</div>
-  {% endif %}
+<div class="tm-stat-grid mb-4">
+  {% include "components/stat_card.html" with label="Ciclo activo" value=cycle.name %}
+  {% include "components/stat_card.html" with label="Cualitativo" value=my_score.qualitative_score|default:"—" hint="Score actual" %}
+  {% include "components/stat_card.html" with label="Cuantitativo" value=my_score.quantitative_score|default:"—" hint="Score actual" %}
+  {% include "components/stat_card.html" with label="9-Box" value=my_score.box_label|default:"Pendiente" %}
+</div>
 
-  <div class="row g-3">
-    <div class="col-lg-6">
-      <div class="card p-4">
-        <h5 class="mb-3">Mi evaluación</h5>
-
-        {% if my_score %}
-          <div class="d-flex flex-wrap gap-2 align-items-center">
-            <span class="badge text-bg-primary">Cualitativo: {{ my_score.qualitative_score }}</span>
-            <span class="badge text-bg-secondary">Cuantitativo: {{ my_score.quantitative_score }}</span>
-            <span class="badge text-bg-dark">9-Box: {{ my_score.box_label }}</span>
-          </div>
-        {% else %}
-          <p class="text-muted mb-0">Aún no hay score calculado para ti en este ciclo.</p>
-        {% endif %}
-
-        {% if can_edit_me %}
-          <hr class="my-4">
-          <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-outline-primary" href="{% url 'edit_quantitative' me.id %}">
-              {% if cycle_locked %}Ver metas cuantitativas{% else %}Editar metas cuantitativas{% endif %}
-            </a>
-            <a class="btn btn-outline-primary" href="{% url 'competency_picker' employee_id=me.id %}">
-              {% if cycle_locked %}Ver competencias cualitativas{% else %}Editar competencias cualitativas{% endif %}
-            </a>
-          </div>
-        {% else %}
-          <div class="mt-3 text-muted small">Solo tu superior o administración pueden editar tu evaluación.</div>
-        {% endif %}
-
-        {% if can_self_evaluate %}
-          <hr class="my-4">
-          <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-outline-secondary" href="{% url 'competency_picker' me.id %}">Mi autoevaluación cualitativa</a>
-          </div>
-        {% endif %}
+<div class="row g-3">
+  <div class="col-xl-7">
+    <div class="tm-panel h-100">
+      <div class="tm-panel-header">
+        <div>
+          <h5 class="tm-panel-title">Mi evaluación</h5>
+          <p class="tm-panel-subtitle">Acceso rápido a competencias, metas y autoevaluación.</p>
+        </div>
       </div>
+
+      {% if my_score %}
+        <div class="d-flex flex-wrap gap-2 mb-4">
+          <span class="badge text-bg-primary">Cualitativo: {{ my_score.qualitative_score }}</span>
+          <span class="badge text-bg-secondary">Cuantitativo: {{ my_score.quantitative_score }}</span>
+          <span class="badge text-bg-dark">9-Box: {{ my_score.box_label }}</span>
+        </div>
+      {% else %}
+        {% include "components/empty_state.html" with title="Sin score todavía" description="Aún no hay resultados calculados para este ciclo." %}
+      {% endif %}
+
+      {% if can_edit_me %}
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <a class="btn btn-primary" href="{% url 'edit_quantitative' me.id %}"><i class="bi bi-bullseye me-1"></i> Metas cuantitativas</a>
+          <a class="btn btn-outline-primary" href="{% url 'competency_picker' employee_id=me.id %}"><i class="bi bi-list-check me-1"></i> Competencias cualitativas</a>
+        </div>
+      {% else %}
+        <div class="alert alert-warning mt-3 mb-0">Solo tu superior o administración pueden editar tu evaluación.</div>
+      {% endif %}
+
+      {% if can_self_evaluate %}
+        <hr>
+        <a class="btn btn-outline-secondary" href="{% url 'competency_picker' me.id %}"><i class="bi bi-person-check me-1"></i> Mi autoevaluación cualitativa</a>
+      {% endif %}
     </div>
-
-    <div class="col-lg-6">
-      <div class="card p-4">
-        <h5 class="mb-3">Equipo / HR</h5>
-
-        {% if is_manager or is_hr %}
-          <p class="text-muted">Gestiona evaluaciones del equipo.</p>
-          <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-primary" href="{% url 'team_overview' %}">Mi equipo</a>
-            {% if is_hr %}
-              <a class="btn btn-outline-primary" href="{% url 'nine_box' %}">Mapa 9-Box</a>
-            {% endif %}
-          </div>
-        {% else %}
-          <p class="text-muted mb-0">No tienes permisos de manager/HR.</p>
-        {% endif %}
+  </div>
+  <div class="col-xl-5">
+    <div class="tm-panel h-100">
+      <div class="tm-panel-header">
+        <div>
+          <h5 class="tm-panel-title">Gestión de equipo</h5>
+          <p class="tm-panel-subtitle">Flujos de evaluación, seguimiento y talento.</p>
+        </div>
       </div>
+      {% if is_manager or is_hr %}
+        <div class="d-grid gap-2">
+          <a class="btn btn-primary" href="{% url 'team_overview' %}"><i class="bi bi-people me-1"></i> Mi equipo</a>
+          {% if is_hr %}
+            <a class="btn btn-outline-primary" href="{% url 'nine_box' %}"><i class="bi bi-diagram-3 me-1"></i> Mapa 9-Box</a>
+          {% endif %}
+        </div>
+      {% else %}
+        {% include "components/empty_state.html" with title="Sin permisos de gestión" description="No tienes permisos de manager o HR en este ciclo." %}
+      {% endif %}
     </div>
   </div>
 </div>

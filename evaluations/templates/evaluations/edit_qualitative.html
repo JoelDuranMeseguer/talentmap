@@ -14,9 +14,6 @@
   {% if is_self_eval %}
     <div class="alert alert-info">Tu autoevaluación es informativa y no modifica el score oficial.</div>
   {% endif %}
-  {% if cycle_locked %}
-    <div class="alert alert-warning">Ciclo cerrado: solo consulta, no se permiten cambios.</div>
-  {% endif %}
   {% if missing_level %}
   <p><strong>⚠ Configuración incompleta:</strong> el nivel {{ missing_level }} no tiene comportamientos configurados. Contacta con HR/Admin.</p>
   {% endif %}

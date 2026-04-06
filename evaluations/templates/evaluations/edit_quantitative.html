@@ -2,101 +2,77 @@
 {% block title %}Cuantitativo (metas) · {{ employee }} · TalentMap{% endblock %}
 
 {% block content %}
-<div class="container">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h3 class="mb-1">Cuantitativo · Metas</h3>
-      <div class="text-muted">{{ employee }} · {{ cycle.name }}</div>
-    </div>
-    <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Volver</a>
+<div class="tm-page-head d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h1 class="tm-page-title mb-1">Cuantitativo · Metas</h1>
+    <p class="tm-page-subtitle mb-0">{{ employee }} · {{ cycle.name }}</p>
   </div>
+  <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}"><i class="bi bi-arrow-left me-1"></i> Volver</a>
+</div>
 
-  <div class="card p-4">
-    {% if cycle_locked %}
-      <div class="alert alert-warning">Ciclo cerrado: solo consulta, no se permiten cambios.</div>
-    {% endif %}
-    <div class="alert alert-info mb-4">
+<div class="tm-panel">
+  <div class="alert alert-info mb-4">
       Los pesos deben sumar exactamente <strong>100%</strong>.
+  </div>
+
+  <form method="post" id="quant-form">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <div class="table-responsive">
+      <table class="table tm-data-table align-middle" id="goals-table">
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Descripción</th>
+            <th style="width: 140px;">Peso %</th>
+            <th style="width: 160px;">Completado %</th>
+            <th style="width: 120px;">Borrar</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in formset %}
+            <tr>
+              <td>{{ f.title }}{% if f.title.errors %}<div class="text-danger small mt-1">{{ f.title.errors }}</div>{% endif %}</td>
+              <td>{{ f.description }}{% if f.description.errors %}<div class="text-danger small mt-1">{{ f.description.errors }}</div>{% endif %}</td>
+              <td>{{ f.weight_percent }}{% if f.weight_percent.errors %}<div class="text-danger small mt-1">{{ f.weight_percent.errors }}</div>{% endif %}</td>
+              <td>{{ f.completion_percent }}{% if f.completion_percent.errors %}<div class="text-danger small mt-1">{{ f.completion_percent.errors }}</div>{% endif %}</td>
+              <td>
+                {% if f.instance.pk %}
+                  <div class="form-check">{{ f.DELETE }}<label class="form-check-label">Eliminar</label></div>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
 
-    <form method="post" id="quant-form">
-      {% csrf_token %}
-      {{ formset.management_form }}
+    {% if formset.non_form_errors %}
+      <div class="text-danger small">{{ formset.non_form_errors }}</div>
+    {% endif %}
 
-      <div class="table-responsive">
-        <table class="table align-middle" id="goals-table">
-          <thead class="text-muted small">
-            <tr>
-              <th>Título</th>
-              <th>Descripción</th>
-              <th style="width: 140px;">Peso %</th>
-              <th style="width: 160px;">Completado %</th>
-              <th style="width: 120px;">Borrar</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for f in formset %}
-              <tr>
-                <td>
-                  {{ f.title }}
-                  {% if f.title.errors %}<div class="text-danger small">{{ f.title.errors }}</div>{% endif %}
-                </td>
-                <td>
-                  {{ f.description }}
-                  {% if f.description.errors %}<div class="text-danger small">{{ f.description.errors }}</div>{% endif %}
-                </td>
-                <td>
-                  {{ f.weight_percent }}
-                  {% if f.weight_percent.errors %}<div class="text-danger small">{{ f.weight_percent.errors }}</div>{% endif %}
-                </td>
-                <td>
-                  {{ f.completion_percent }}
-                  {% if f.completion_percent.errors %}<div class="text-danger small">{{ f.completion_percent.errors }}</div>{% endif %}
-                </td>
-                <td>
-                  {% if f.instance.pk %}
-                    <div class="form-check">
-                      {{ f.DELETE }}
-                      <label class="form-check-label">Eliminar</label>
-                    </div>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+    <div class="text-muted small mb-3">Usa "Añadir meta" para crear una nueva fila.</div>
 
-      {% if formset.non_form_errors %}
-        <div class="text-danger small">{{ formset.non_form_errors }}</div>
-      {% endif %}
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-outline-primary" id="add-goal-row"><i class="bi bi-plus-circle me-1"></i> Añadir meta</button>
+      <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i> Guardar cambios</button>
+      <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Cancelar</a>
+    </div>
+  </form>
 
-      <div class="text-muted small mb-3">
-        Usa "Añadir meta" para crear una nueva fila.
-      </div>
-
-      <div class="d-flex gap-2">
-        {% if not cycle_locked %}
-          <button type="button" class="btn btn-outline-primary" id="add-goal-row">Añadir meta</button>
-          <button type="submit" class="btn btn-primary">Guardar cambios</button>
-        {% endif %}
-        <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Cancelar</a>
-      </div>
-    </form>
-
-    <template id="empty-goal-row-template">
-      <tr>
-        <td>{{ formset.empty_form.title }}</td>
-        <td>{{ formset.empty_form.description }}</td>
-        <td>{{ formset.empty_form.weight_percent }}</td>
-        <td>{{ formset.empty_form.completion_percent }}</td>
-        <td><span class="text-muted">—</span></td>
-      </tr>
-    </template>
-  </div>
+  <template id="empty-goal-row-template">
+    <tr>
+      <td>{{ formset.empty_form.title }}</td>
+      <td>{{ formset.empty_form.description }}</td>
+      <td>{{ formset.empty_form.weight_percent }}</td>
+      <td>{{ formset.empty_form.completion_percent }}</td>
+      <td><span class="text-muted">—</span></td>
+    </tr>
+  </template>
 </div>
 {% endblock %}
 

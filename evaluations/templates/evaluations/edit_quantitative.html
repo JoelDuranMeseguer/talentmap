@@ -12,6 +12,9 @@
   </div>
 
   <div class="card p-4">
+    {% if cycle_locked %}
+      <div class="alert alert-warning">Ciclo cerrado: solo consulta, no se permiten cambios.</div>
+    {% endif %}
     <div class="alert alert-info mb-4">
       Los pesos deben sumar exactamente <strong>100%</strong>.
     </div>
@@ -78,6 +81,10 @@
       <div class="d-flex gap-2">
         <button type="button" class="btn btn-outline-primary" id="add-goal-row">Añadir meta</button>
         <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        {% if not cycle_locked %}
+          <button type="button" class="btn btn-outline-primary" id="add-goal-row">Añadir meta</button>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        {% endif %}
         <a class="btn btn-outline-secondary" href="{% url 'team_overview' %}">Cancelar</a>
       </div>
     </form>

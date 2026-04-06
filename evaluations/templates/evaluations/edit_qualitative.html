@@ -14,6 +14,9 @@
   {% if is_self_eval %}
     <div class="alert alert-info">Tu autoevaluación es informativa y no modifica el score oficial.</div>
   {% endif %}
+  {% if cycle_locked %}
+    <div class="alert alert-warning">Ciclo cerrado: solo consulta, no se permiten cambios.</div>
+  {% endif %}
   {% if missing_level %}
   <p><strong>⚠ Configuración incompleta:</strong> el nivel {{ missing_level }} no tiene comportamientos configurados. Contacta con HR/Admin.</p>
   {% endif %}
@@ -107,22 +110,22 @@
                       <div class="btn-group btn-group-sm" role="group" aria-label="rating">
                         <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
                                id="ind_{{ ind.id }}_1" value="1" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
-                               {% if current == 1 %}checked{% endif %}>
+                               {% if current == 1 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
                         <label class="btn btn-outline-danger" for="ind_{{ ind.id }}_1">Nunca</label>
 
                         <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
                                id="ind_{{ ind.id }}_2" value="2" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
-                               {% if current == 2 %}checked{% endif %}>
+                               {% if current == 2 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
                         <label class="btn btn-outline-warning" for="ind_{{ ind.id }}_2">Casi nunca</label>
 
                         <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
                                id="ind_{{ ind.id }}_3" value="3" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
-                               {% if current == 3 %}checked{% endif %}>
+                               {% if current == 3 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
                         <label class="btn btn-outline-info" for="ind_{{ ind.id }}_3">Casi siempre</label>
 
                         <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
                                id="ind_{{ ind.id }}_4" value="4" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
-                               {% if current == 4 %}checked{% endif %}>
+                               {% if current == 4 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
                         <label class="btn btn-outline-success" for="ind_{{ ind.id }}_4">Siempre</label>
                       </div>
                     </div>
@@ -138,13 +141,14 @@
     </div>
 
     <div class="d-flex gap-2 mt-3">
-      <button class="btn btn-primary" type="submit">Guardar</button>
+      {% if not cycle_locked %}<button class="btn btn-primary" type="submit">Guardar</button>{% endif %}
       <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Cancelar</a>
     </div>
   </form>
 </div>
 {% endblock %}
 
+{% if not cycle_locked %}
 {% block extra_js %}
 <script>
   const form = document.getElementById("qual-form");
@@ -276,3 +280,4 @@
   recompute();
 </script>
 {% endblock %}
+{% endif %}

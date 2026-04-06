@@ -17,6 +17,10 @@
     </div>
   </div>
 
+  {% if cycle_locked %}
+    <div class="alert alert-warning">Este ciclo está cerrado. Solo puedes consultar información histórica.</div>
+  {% endif %}
+
   <div class="card p-3">
     <div class="table-responsive">
       <table class="table align-middle mb-0">
@@ -54,6 +58,11 @@
                   <a class="btn btn-sm btn-outline-secondary"
                      href="{% url 'competency_picker' employee_id=e.id %}">
                     Competencias
+                    {% if cycle_locked %}Ver metas{% else %}Metas{% endif %}
+                  </a>
+                  <a class="btn btn-sm btn-outline-secondary"
+                     href="{% url 'competency_picker' employee_id=e.id %}">
+                    {% if cycle_locked %}Ver competencias{% else %}Competencias{% endif %}
                   </a>
                 </div>
               </td>

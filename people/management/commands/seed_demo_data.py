@@ -257,6 +257,10 @@ class Command(BaseCommand):
             if not user.has_usable_password():
                 user.set_password("demo12345")
                 user.save()
+            # Reforzamos siempre la contraseña demo para evitar usuarios con
+            # password vacío/ilegible tras reinicios de BD o seeds parciales.
+            user.set_password("demo12345")
+            user.save(update_fields=["password"])
 
             role = roles[role_name]
             employee, _ = Employee.objects.get_or_create(

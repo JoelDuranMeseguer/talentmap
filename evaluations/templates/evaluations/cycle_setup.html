@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load tz %}
+{% block title %}Configurar ciclo · TalentMap{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="mb-1">Introduzca el nuevo ciclo</h3>
+      <div class="text-muted">Cree un ciclo activo y consulte históricos en modo solo lectura.</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'eval_home' %}">Volver</a>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card p-4">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label" for="id_name">{{ form.name.label }}</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="id_end_date">{{ form.end_date.label }}</label>
+            {{ form.end_date }}
+            {% if form.end_date.errors %}<div class="text-danger small">{{ form.end_date.errors }}</div>{% endif %}
+          </div>
+          <button type="submit" class="btn btn-primary">Crear ciclo</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="card p-4">
+        <h5>Ciclos existentes</h5>
+        <p class="text-muted mb-3">Los ciclos anteriores se pueden consultar, pero no editar.</p>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr class="text-muted small">
+                <th>Nombre</th>
+                <th>Inicio</th>
+                <th>Fin</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in cycles %}
+                <tr>
+                  <td>{{ c.name }}</td>
+                  <td>{{ c.start_date }}</td>
+                  <td>{{ c.end_date }}</td>
+                  <td>
+                    {% now "Y-m-d" as today_iso %}
+                    {% if c.end_date|date:"Y-m-d" < today_iso %}
+                      <span class="badge text-bg-secondary">Cerrado</span>
+                    {% else %}
+                      <span class="badge text-bg-success">Activo / futuro</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No hay ciclos aún.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

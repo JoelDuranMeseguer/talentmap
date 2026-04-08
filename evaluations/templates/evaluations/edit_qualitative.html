@@ -186,11 +186,13 @@
   const statusEl = document.getElementById("autosave-status");
   const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
   const debounceMs = 1000;
+  const requestTimeoutMs = 15000;
   let dirty = false;
   let debounceTimer = null;
   let savePromise = null;
   let hasQueuedSave = false;
   let pendingNavigationUrl = null;
+  let isSubmitInProgress = false;
 
   function setStatus(type, msg) {
     if (!statusEl) return;
@@ -251,17 +253,25 @@
     const payload = new URLSearchParams(new FormData(form));
     payload.set("_autosave", "1");
     const outgoingSnapshot = snapshotFormState();
-    const resp = await fetch(window.location.href, {
-      method: "POST",
-      headers: {
-        "X-Requested-With": "XMLHttpRequest",
-        "X-CSRFToken": csrfToken,
-        "Accept": "application/json",
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
-      body: payload.toString(),
-      credentials: "same-origin",
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), requestTimeoutMs);
+    let resp;
+    try {
+      resp = await fetch(window.location.href, {
+        method: "POST",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": csrfToken,
+          "Accept": "application/json",
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+        body: payload.toString(),
+        credentials: "same-origin",
+        signal: controller.signal,
+      });
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok || !data.ok) {
       throw new Error(data.error || "No se pudo guardar.");
@@ -312,6 +322,10 @@
 
   async function navigateWithAutosave(url) {
     if (!url) return;
+    if (debounceTimer) {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
     pendingNavigationUrl = url;
     const ok = await flushAutosave();
     if (ok && pendingNavigationUrl === url) {
@@ -427,6 +441,21 @@
       }
       await navigateWithAutosave(targetUrl);
     });
+  });
+
+  form.addEventListener("submit", async (ev) => {
+    if (isSubmitInProgress) return;
+    if (!dirty && !savePromise && !debounceTimer) return;
+
+    ev.preventDefault();
+    if (debounceTimer) {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    const ok = await flushAutosave();
+    if (!ok) return;
+    isSubmitInProgress = true;
+    form.submit();
   });
 
   window.addEventListener("beforeunload", (ev) => {

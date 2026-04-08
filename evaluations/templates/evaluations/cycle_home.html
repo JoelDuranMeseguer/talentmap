@@ -12,9 +12,21 @@
 
 <div class="tm-stat-grid mb-4">
   {% include "components/stat_card.html" with label="Ciclo activo" value=cycle.name %}
-  {% include "components/stat_card.html" with label="Cualitativo" value=my_score.qualitative_score|default:"—" hint="Score actual" %}
-  {% include "components/stat_card.html" with label="Cuantitativo" value=my_score.quantitative_score|default:"—" hint="Score actual" %}
-  {% include "components/stat_card.html" with label="9-Box" value=my_score.box_label|default:"Pendiente" %}
+  {% if is_hr %}
+    {% include "components/stat_card.html" with label="Cualitativo" value=my_score.qualitative_score|default:"—" hint="Score actual" %}
+    {% include "components/stat_card.html" with label="Cuantitativo" value=my_score.quantitative_score|default:"—" hint="Score actual" %}
+    {% include "components/stat_card.html" with label="9-Box" value=my_score.box_label|default:"Pendiente" %}
+  {% else %}
+    {% if self_eval_status.completed %}
+      {% include "components/stat_card.html" with label="Autoevaluación" value="Realizada" hint="Tu autoevaluación ya tiene avances." %}
+      {% include "components/stat_card.html" with label="Detalle autoevaluación" value=self_eval_status.done hint="Comportamientos con avance (> Nunca)." %}
+      {% include "components/stat_card.html" with label="Estado" value="Visible para tu evaluador" %}
+    {% else %}
+      {% include "components/stat_card.html" with label="Autoevaluación" value="Pendiente" hint="Aún no has completado tu autoevaluación cualitativa." %}
+      {% include "components/stat_card.html" with label="Detalle autoevaluación" value="0" hint="Sin avances todavía." %}
+      {% include "components/stat_card.html" with label="Estado" value="Sin autoevaluar" %}
+    {% endif %}
+  {% endif %}
 </div>
 
 <div class="row g-3">
@@ -27,14 +39,24 @@
         </div>
       </div>
 
-      {% if my_score %}
+      {% if is_hr and my_score %}
         <div class="d-flex flex-wrap gap-2 mb-4">
           <span class="badge text-bg-primary">Cualitativo: {{ my_score.qualitative_score }}</span>
           <span class="badge text-bg-secondary">Cuantitativo: {{ my_score.quantitative_score }}</span>
           <span class="badge text-bg-dark">9-Box: {{ my_score.box_label }}</span>
         </div>
-      {% else %}
+      {% elif is_hr %}
         {% include "components/empty_state.html" with title="Sin score todavía" description="Aún no hay resultados calculados para este ciclo." %}
+      {% else %}
+        {% if self_eval_status.completed %}
+          <div class="alert alert-success mb-4">
+            ✅ Autoevaluación registrada ({{ self_eval_status.done }}/{{ self_eval_status.total }} comportamientos).
+          </div>
+        {% else %}
+          <div class="alert alert-secondary mb-4">
+            ⏳ Aún no has realizado tu autoevaluación cualitativa.
+          </div>
+        {% endif %}
       {% endif %}
 
       {% if can_edit_me %}

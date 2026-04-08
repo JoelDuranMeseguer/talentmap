@@ -78,7 +78,7 @@ class CoreWorkflowTests(TestCase):
         self.assertIn((score.qual_tercile, score.quant_tercile), BOXES)
         self.assertTrue(score.box_code)
 
-    def test_competency_picker_shows_actual_and_required_levels(self):
+    def test_competency_picker_shows_classification_and_hides_required_for_manager(self):
         comp = Competency.objects.create(name="Ownership")
         l1 = CompetencyLevel.objects.create(competency=comp, level=1, title="L1")
         l2 = CompetencyLevel.objects.create(competency=comp, level=2, title="L2")
@@ -97,5 +97,25 @@ class CoreWorkflowTests(TestCase):
         self.client.login(username="manager", password="pass")
         resp = self.client.get(reverse("competency_picker", args=[self.report.id]))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Actual: nivel 1")
-        self.assertContains(resp, "Requerido: nivel 2")
+        self.assertContains(resp, "Básico")
+        self.assertContains(resp, "Autoevaluación:")
+        self.assertNotContains(resp, "Requerido: nivel 2")
+
+    def test_edit_qualitative_autosave_returns_json(self):
+        comp = Competency.objects.create(name="Calidad")
+        l1 = CompetencyLevel.objects.create(competency=comp, level=1, title="L1")
+        i1 = LevelIndicator.objects.create(level=l1, text="i1")
+        RoleCompetencyRequirement.objects.create(role=self.role, competency=comp, required_level=1, weight=Decimal("1"))
+
+        self.client.login(username="manager", password="pass")
+        resp = self.client.post(
+            reverse("edit_qualitative_competency", args=[self.report.id, comp.id]),
+            {f"ind_{i1.id}": "4", "_autosave": "1"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertJSONEqual(resp.content, {"ok": True, "achieved_level": 1, "current_level": 1})
+        saved = QualitativeIndicatorAssessment.objects.get(employee=self.report, cycle=self.cycle, indicator=i1)
+        self.assertEqual(int(saved.rating), 4)

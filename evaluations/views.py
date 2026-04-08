@@ -2,6 +2,7 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -16,7 +17,14 @@ from evaluations.models import (
     QualitativeIndicatorSelfAssessment,
     QuantitativeGoal,
 )
-from evaluations.services.scoring import BOXES, PASS_RATING, recompute_cycle_scores, terciles_for_scores
+from evaluations.services.scoring import (
+    BOXES,
+    PASS_RATING,
+    competency_qualitative_label,
+    pass_rating_for_level,
+    recompute_cycle_scores,
+    terciles_for_scores,
+)
 from people.models import Department, Employee, Role
 from people.services.access import is_hr, managed_employees_qs
 from django.contrib import messages
@@ -76,6 +84,10 @@ def _recompute_company(cycle: EvaluationCycle):
     recompute_cycle_scores(cycle, Employee.objects.filter(active=True))
 
 
+def _recompute_employee(cycle: EvaluationCycle, employee: Employee):
+    recompute_cycle_scores(cycle, Employee.objects.filter(id=employee.id))
+
+
 def _cycle_or_admin_redirect(request):
     cycle = get_current_cycle(request)
     if cycle:
@@ -117,6 +129,51 @@ def _can_manage_employee(user, employee: Employee) -> bool:
     return is_hr(user) or managed_employees_qs(user).filter(id=employee.id).exists()
 
 
+def _classify_competency(levels, rating_map, required_level):
+    achieved, _, _ = _qual_progress(levels, rating_map, required_level)
+    level3 = next((lvl for lvl in levels if lvl.level == 3), None)
+    if not level3:
+        return competency_qualitative_label(achieved, 0, False)
+
+    level3_inds = list(level3.indicators.all())
+    if not level3_inds:
+        return competency_qualitative_label(achieved, 0, False)
+
+    always_count = sum(1 for ind in level3_inds if rating_map.get(ind.id, 1) == 4)
+    passed_level3 = all(rating_map.get(ind.id, 1) >= pass_rating_for_level(3) for ind in level3_inds)
+    return competency_qualitative_label(achieved, always_count, passed_level3)
+
+
+def _self_assessment_status(employee, cycle):
+    reqs = (
+        RoleCompetencyRequirement.objects.filter(role=employee.role)
+        .select_related("competency")
+        .order_by("competency__name")
+    )
+    all_indicator_ids = []
+    for req in reqs:
+        levels = (
+            CompetencyLevel.objects.filter(competency=req.competency, level__lte=req.required_level)
+            .prefetch_related("indicators")
+            .order_by("level")
+        )
+        all_indicator_ids.extend([ind.id for lvl in levels for ind in lvl.indicators.all()])
+
+    if not all_indicator_ids:
+        return {"has_data": False, "done": 0, "total": 0, "completed": False}
+
+    ratings = QualitativeIndicatorSelfAssessment.objects.filter(
+        employee=employee,
+        cycle=cycle,
+        indicator_id__in=all_indicator_ids,
+    )
+    self_map = {a.indicator_id: int(a.rating) for a in ratings}
+    done = sum(1 for ind_id in all_indicator_ids if self_map.get(ind_id, 1) > 1)
+    total = len(all_indicator_ids)
+    completed = done > 0
+    return {"has_data": True, "done": done, "total": total, "completed": completed}
+
+
 @login_required
 def cycle_home(request):
     cycle, fallback = _cycle_or_admin_redirect(request)
@@ -136,6 +193,7 @@ def cycle_home(request):
 
     can_edit_me = hr or (me.manager_id and me.manager.user_id == request.user.id)
     can_self_evaluate = hasattr(request.user, "employee")
+    self_eval_status = _self_assessment_status(me, cycle)
 
     return render(
         request,
@@ -148,6 +206,7 @@ def cycle_home(request):
             "is_hr": hr,
             "can_edit_me": can_edit_me,
             "can_self_evaluate": can_self_evaluate,
+            "self_eval_status": self_eval_status,
             "cycle_locked": cycle_locked,
         },
     )
@@ -261,7 +320,22 @@ def competency_picker(request, employee_id):
         ratings = model_cls.objects.filter(employee=emp, cycle=cycle, indicator_id__in=indicator_ids)
         rating_map = {a.indicator_id: int(a.rating) for a in ratings}
         achieved_level, _, _ = _qual_progress(levels, rating_map, int(req.required_level))
-        req_rows.append({"req": req, "achieved_level": achieved_level})
+        classification = _classify_competency(levels, rating_map, int(req.required_level))
+        self_ratings = QualitativeIndicatorSelfAssessment.objects.filter(
+            employee=emp, cycle=cycle, indicator_id__in=indicator_ids
+        )
+        self_map = {a.indicator_id: int(a.rating) for a in self_ratings}
+        self_done = sum(1 for ind_id in indicator_ids if self_map.get(ind_id, 1) > 1)
+        req_rows.append(
+            {
+                "req": req,
+                "achieved_level": achieved_level,
+                "classification": classification,
+                "self_done": self_done,
+                "self_total": len(indicator_ids),
+                "self_completed": self_done > 0,
+            }
+        )
 
     return render(
         request,
@@ -271,6 +345,7 @@ def competency_picker(request, employee_id):
             "employee": emp,
             "req_rows": req_rows,
             "is_self_eval": is_self_eval,
+            "can_view_required_level": is_hr(request.user),
             "cycle_locked": cycle_locked,
         },
     )
@@ -294,7 +369,7 @@ def _qual_progress(levels, rating_map, required_level):
             unlocked = lvl.level
             break
 
-        passed = sum(1 for ind in inds if rating_map.get(ind.id, 1) >= PASS_RATING)
+        passed = sum(1 for ind in inds if rating_map.get(ind.id, 1) >= pass_rating_for_level(lvl.level))
         if passed == len(inds):
             achieved = lvl.level
             unlocked = min(lvl.level + 1, required_level)
@@ -304,6 +379,53 @@ def _qual_progress(levels, rating_map, required_level):
 
     unlocked = max(1, min(unlocked, required_level))
     return achieved, unlocked, missing_level
+
+
+def _persist_qualitative_ratings(request, emp, cycle, levels, model_cls, is_self_eval, required_level, rating_map, unlocked_max_level):
+    post_rating_map = dict(rating_map)
+    dynamic_unlocked_max = unlocked_max_level
+
+    with transaction.atomic():
+        for lvl in levels:
+            # Enforce server-side locking: no aceptar niveles bloqueados.
+            if lvl.level > dynamic_unlocked_max:
+                continue
+
+            inds = list(lvl.indicators.all())
+            for ind in inds:
+                raw = request.POST.get(f"ind_{ind.id}")
+                try:
+                    rating = int(raw) if raw else 1
+                except ValueError:
+                    rating = 1
+                rating = max(1, min(4, rating))
+
+                model_cls.objects.update_or_create(
+                    employee=emp,
+                    cycle=cycle,
+                    indicator=ind,
+                    defaults={"rating": rating, **({} if is_self_eval else {"assessed_by": request.user})},
+                )
+                post_rating_map[ind.id] = rating
+
+            # Recalcula desbloqueo dentro del mismo submit para no obligar a guardar entre niveles.
+            if inds:
+                passed = sum(
+                    1 for ind in inds if post_rating_map.get(ind.id, 1) >= pass_rating_for_level(lvl.level)
+                )
+                if passed == len(inds):
+                    dynamic_unlocked_max = min(lvl.level + 1, required_level)
+                else:
+                    dynamic_unlocked_max = lvl.level
+                    break
+
+    achieved_level, current_level, missing_level = _qual_progress(levels, post_rating_map, required_level)
+    return {
+        "rating_map": post_rating_map,
+        "achieved_level": achieved_level,
+        "current_level": current_level,
+        "missing_level": missing_level,
+    }
 
 
 @login_required
@@ -330,6 +452,20 @@ def edit_qualitative(request, employee_id, competency_id):
         .prefetch_related("indicators")
         .order_by("level")
     )
+    ordered_competency_ids = list(
+        RoleCompetencyRequirement.objects.filter(role=emp.role)
+        .select_related("competency")
+        .order_by("competency__name")
+        .values_list("competency_id", flat=True)
+    )
+    try:
+        idx = ordered_competency_ids.index(comp.id)
+    except ValueError:
+        idx = -1
+    prev_competency_id = ordered_competency_ids[idx - 1] if idx > 0 else None
+    next_competency_id = (
+        ordered_competency_ids[idx + 1] if idx >= 0 and idx < len(ordered_competency_ids) - 1 else None
+    )
 
     indicator_ids = []
     for lvl in levels:
@@ -341,63 +477,62 @@ def edit_qualitative(request, employee_id, competency_id):
     rating_map = {a.indicator_id: int(a.rating) for a in existing}
 
     self_rating_map = {}
+    self_eval_completed = False
     if not is_self_eval:
-        official_ids = set(
-            QualitativeIndicatorAssessment.objects.filter(
-                employee=emp, cycle=cycle, indicator_id__in=indicator_ids
-            ).values_list("indicator_id", flat=True)
-        )
         self_existing = QualitativeIndicatorSelfAssessment.objects.filter(
             employee=emp, cycle=cycle, indicator_id__in=indicator_ids
         )
-        self_rating_map = {a.indicator_id: int(a.rating) for a in self_existing if a.indicator_id in official_ids}
+        self_rating_map = {a.indicator_id: int(a.rating) for a in self_existing}
+        self_eval_completed = any(self_rating_map.get(ind_id, 1) > 1 for ind_id in indicator_ids)
 
     achieved_level, unlocked_max_level, missing_level = _qual_progress(levels, rating_map, required_level)
     current_level = unlocked_max_level
 
     if request.method == "POST":
+        wants_json = (
+            request.headers.get("x-requested-with") == "XMLHttpRequest"
+            or "application/json" in request.headers.get("Accept", "")
+            or request.POST.get("_autosave") == "1"
+        )
+
         if cycle_locked:
+            if wants_json:
+                return JsonResponse({"ok": False, "error": "Este ciclo está cerrado. Solo se permite consulta."}, status=423)
             messages.error(request, "Este ciclo está cerrado. Solo se permite consulta.")
             return redirect("edit_qualitative_competency", employee_id=employee_id, competency_id=competency_id)
 
-        with transaction.atomic():
-            post_rating_map = dict(rating_map)
-            dynamic_unlocked_max = unlocked_max_level
-            for lvl in levels:
-                # Enforce server-side locking: no aceptar niveles bloqueados.
-                if lvl.level > dynamic_unlocked_max:
-                    continue
-
-                inds = list(lvl.indicators.all())
-                for ind in lvl.indicators.all():
-                    raw = request.POST.get(f"ind_{ind.id}")
-                    try:
-                        rating = int(raw) if raw else 1
-                    except ValueError:
-                        rating = 1
-                    rating = max(1, min(4, rating))
-
-                    model_cls.objects.update_or_create(
-                        employee=emp,
-                        cycle=cycle,
-                        indicator=ind,
-                        defaults={"rating": rating, **({} if is_self_eval else {"assessed_by": request.user})},
-                    )
-                    post_rating_map[ind.id] = rating
-
-                # Recalcula desbloqueo dentro del mismo submit para no obligar a guardar entre niveles.
-                if inds:
-                    passed = sum(1 for ind in inds if post_rating_map.get(ind.id, 1) >= PASS_RATING)
-                    if passed == len(inds):
-                        dynamic_unlocked_max = min(lvl.level + 1, required_level)
-                    else:
-                        dynamic_unlocked_max = lvl.level
-                        break
+        save_result = _persist_qualitative_ratings(
+            request=request,
+            emp=emp,
+            cycle=cycle,
+            levels=levels,
+            model_cls=model_cls,
+            is_self_eval=is_self_eval,
+            required_level=required_level,
+            rating_map=rating_map,
+            unlocked_max_level=unlocked_max_level,
+        )
 
         if is_self_eval:
+            if wants_json:
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "achieved_level": save_result["achieved_level"],
+                        "current_level": save_result["current_level"],
+                    }
+                )
             messages.success(request, "Autoevaluación cualitativa guardada.")
         else:
-            _recompute_company(cycle)
+            _recompute_employee(cycle, emp)
+            if wants_json:
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "achieved_level": save_result["achieved_level"],
+                        "current_level": save_result["current_level"],
+                    }
+                )
             messages.success(request, "Cualitativo guardado.")
         return redirect("edit_qualitative_competency", employee_id=emp.id, competency_id=comp.id)
 
@@ -406,7 +541,7 @@ def edit_qualitative(request, employee_id, competency_id):
     for lvl in levels:
         inds = list(lvl.indicators.all())
         total = len(inds)
-        passed = sum(1 for ind in inds if rating_map.get(ind.id, 1) >= PASS_RATING)
+        passed = sum(1 for ind in inds if rating_map.get(ind.id, 1) >= pass_rating_for_level(lvl.level))
 
         levels_ctx.append(
             {
@@ -436,6 +571,10 @@ def edit_qualitative(request, employee_id, competency_id):
             "PASS_RATING": PASS_RATING,
             "is_self_eval": is_self_eval,
             "self_rating_map": self_rating_map,
+            "self_eval_completed": self_eval_completed,
+            "can_view_required_level": is_hr(request.user),
+            "prev_competency_id": prev_competency_id,
+            "next_competency_id": next_competency_id,
             "cycle_locked": cycle_locked,
         },
     )

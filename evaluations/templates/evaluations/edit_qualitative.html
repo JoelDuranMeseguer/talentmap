@@ -7,7 +7,10 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h3 class="mb-1">Cualitativo · {{ competency.name }} {% if is_self_eval %}(Autoevaluación){% endif %}</h3>
-      <div class="text-muted">{{ employee }} · {{ cycle.name }} · Requerido hasta nivel {{ required_level }}</div>
+      <div class="text-muted">
+        {{ employee }} · {{ cycle.name }}
+        {% if can_view_required_level %}· Requerido hasta nivel {{ required_level }}{% endif %}
+      </div>
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Volver</a>
   </div>
@@ -21,120 +24,147 @@
   <div class="card p-4 mb-3">
     <div class="d-flex flex-wrap gap-2 align-items-center">
       <span class="badge text-bg-success">Nivel completado: <span id="achieved-badge">{{ achieved_level }}</span></span>
-      <span class="badge text-bg-primary">Nivel actual: <span id="current-badge">{{ current_level }}</span>/{{ required_level }}</span>
+      <span class="badge text-bg-primary">Nivel actual: <span id="current-badge">{{ current_level }}</span>{% if can_view_required_level %}/{{ required_level }}{% endif %}</span>
+      {% if not cycle_locked %}
+      <span class="badge text-bg-light text-dark border" id="autosave-status">Guardado</span>
+      {% else %}
+      <span class="badge text-bg-light text-dark border">Solo lectura</span>
+      {% endif %}
       <span class="text-muted small">
         Para subir: todos los comportamientos del nivel anterior en <strong>Casi siempre</strong> o <strong>Siempre</strong>.
       </span>
     </div>
-    <div class="mt-3 d-flex flex-wrap gap-2">
-      <span class="badge text-bg-danger">Nunca</span>
-      <span class="badge text-bg-warning text-dark">Casi nunca</span>
-      <span class="badge text-bg-info text-dark">Casi siempre</span>
-      <span class="badge text-bg-success">Siempre</span>
-    </div>
   </div>
 
-  <form method="post" id="qual-form" data-pass-rating="{{ PASS_RATING }}" data-required-level="{{ required_level }}">
+  <form method="post" id="qual-form" data-pass-rating="{{ PASS_RATING }}" data-level-3-pass-rating="4" data-required-level="{{ required_level }}">
     {% csrf_token %}
+    <div class="tm-qual-layout">
+      <div class="tm-qual-nav tm-qual-nav--left">
+        {% if prev_competency_id %}
+          <a class="btn btn-outline-secondary js-nav-link" data-target-url="{% url 'edit_qualitative_competency' employee_id=employee.id competency_id=prev_competency_id %}" href="{% url 'edit_qualitative_competency' employee_id=employee.id competency_id=prev_competency_id %}" aria-label="Competencia anterior">
+            <i class="bi bi-chevron-left"></i>
+          </a>
+        {% endif %}
+      </div>
 
-    <div class="accordion" id="levelsAccordion">
-      {% for l in levels_ctx %}
-        {% with lvl=l.level.level %}
-        <div class="accordion-item js-level {% if l.locked_initial %}opacity-75{% endif %}"
-             data-level="{{ lvl }}"
-             data-initial-locked="{% if l.locked_initial %}1{% else %}0{% endif %}"
-             data-missing-config="{% if l.missing_config %}1{% else %}0{% endif %}">
-          <h2 class="accordion-header" id="heading-{{ lvl }}">
-            <button class="accordion-button {% if l.locked_initial %}collapsed{% endif %}"
-                    type="button"
-                    {% if not l.locked_initial %}
-                      data-bs-toggle="collapse" data-bs-target="#collapse-{{ lvl }}"
-                      aria-expanded="true" aria-controls="collapse-{{ lvl }}"
-                    {% else %}
-                      disabled
-                    {% endif %}>
-              <div class="w-100 d-flex justify-content-between align-items-center">
-                <div>
-                  <span class="fw-semibold">Nivel {{ lvl }}</span>
-                  {% if l.level.title %}<span class="text-muted"> · {{ l.level.title }}</span>{% endif %}
-                  <div class="text-muted small">
-                    <span class="js-progress" data-level="{{ lvl }}">{{ l.passed }}/{{ l.total }}</span>
-                    en “Casi siempre / Siempre”
-                  </div>
-                </div>
-
-                <span class="badge js-status-badge
-                             {% if lvl <= achieved_level %}text-bg-success
-                             {% elif lvl == current_level %}text-bg-primary
-                             {% elif l.locked_initial %}text-bg-light text-dark border
-                             {% else %}text-bg-light text-dark border{% endif %}"
-                      data-level="{{ lvl }}">
-                    {% if l.missing_config %} Sin configurar
-                    {% elif lvl <= achieved_level %} Completado
-                    {% elif lvl == current_level %} En progreso
-                    {% else %}
-                    {% if l.locked_initial %}Bloqueado 🔒{% else %}Pendiente{% endif %}
-                  {% endif %}
-                </span>
-              </div>
-            </button>
-          </h2>
-
-          <div id="collapse-{{ lvl }}"
-               class="accordion-collapse collapse {% if not l.locked_initial %}show{% endif %}"
-               aria-labelledby="heading-{{ lvl }}" data-bs-parent="#levelsAccordion">
-            <div class="accordion-body">
-              {% if l.locked_initial %}
-                <div class="alert alert-light border mb-0">
-                  {% if l.missing_config %}
-                    Este nivel no tiene comportamientos configurados. Contacta con HR/Admin.
-                  {% else %}
-                    Completa el nivel anterior para desbloquear este nivel.
-                  {% endif %}
-                </div>
-              {% else %}
-                <div class="vstack gap-2">
-                  {% for ind in l.indicators %}
-                    {% with current=rating_map|get:ind.id|default:1 %}
-                    <div class="d-flex flex-column flex-md-row justify-content-between gap-2 py-2 border-bottom">
-                      <div class="me-3">{{ ind.text }}</div>
-                      {% if not is_self_eval %}
-                        <div class="text-muted small">
-                          Auto: {% with self_val=self_rating_map|get:ind.id %}{% if self_val %}{{ self_val|rating_label }}{% else %}Sin autoevaluación{% endif %}{% endwith %}
-                        </div>
-                      {% endif %}
-
-                      <div class="btn-group btn-group-sm" role="group" aria-label="rating">
-                        <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
-                               id="ind_{{ ind.id }}_1" value="1" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
-                               {% if current == 1 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
-                        <label class="btn btn-outline-danger" for="ind_{{ ind.id }}_1">Nunca</label>
-
-                        <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
-                               id="ind_{{ ind.id }}_2" value="2" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
-                               {% if current == 2 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
-                        <label class="btn btn-outline-warning" for="ind_{{ ind.id }}_2">Casi nunca</label>
-
-                        <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
-                               id="ind_{{ ind.id }}_3" value="3" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
-                               {% if current == 3 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
-                        <label class="btn btn-outline-info" for="ind_{{ ind.id }}_3">Casi siempre</label>
-
-                        <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
-                               id="ind_{{ ind.id }}_4" value="4" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
-                               {% if current == 4 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
-                        <label class="btn btn-outline-success" for="ind_{{ ind.id }}_4">Siempre</label>
+      <div>
+        <div class="accordion" id="levelsAccordion">
+          {% for l in levels_ctx %}
+            {% with lvl=l.level.level %}
+            <div class="accordion-item js-level {% if l.locked_initial %}opacity-75{% endif %}"
+                 data-level="{{ lvl }}"
+                 data-initial-locked="{% if l.locked_initial %}1{% else %}0{% endif %}"
+                 data-missing-config="{% if l.missing_config %}1{% else %}0{% endif %}">
+              <h2 class="accordion-header" id="heading-{{ lvl }}">
+                <button class="accordion-button {% if l.locked_initial %}collapsed{% endif %}"
+                        type="button"
+                        {% if not l.locked_initial %}
+                          data-bs-toggle="collapse" data-bs-target="#collapse-{{ lvl }}"
+                          aria-expanded="true" aria-controls="collapse-{{ lvl }}"
+                        {% else %}
+                          disabled
+                        {% endif %}>
+                  <div class="w-100 d-flex justify-content-between align-items-center">
+                    <div>
+                      <span class="fw-semibold">Nivel {{ lvl }}</span>
+                      <div class="text-muted small">
+                        <span class="js-progress" data-level="{{ lvl }}">{{ l.passed }}/{{ l.total }}</span>
+                        en “Casi siempre / Siempre”
                       </div>
                     </div>
-                    {% endwith %}
-                  {% endfor %}
+
+                    <span class="badge js-status-badge
+                                 {% if lvl <= achieved_level %}text-bg-success
+                                 {% elif lvl == current_level %}text-bg-primary
+                                 {% elif l.locked_initial %}text-bg-light text-dark border
+                                 {% else %}text-bg-light text-dark border{% endif %}"
+                          data-level="{{ lvl }}">
+                        {% if l.missing_config %} Sin configurar
+                        {% elif lvl <= achieved_level %} Completado
+                        {% elif lvl == current_level %} En progreso
+                        {% else %}
+                        {% if l.locked_initial %}Bloqueado 🔒{% else %}Pendiente{% endif %}
+                      {% endif %}
+                    </span>
+                  </div>
+                </button>
+              </h2>
+
+              <div id="collapse-{{ lvl }}"
+                   class="accordion-collapse collapse {% if not l.locked_initial %}show{% endif %}"
+                   aria-labelledby="heading-{{ lvl }}" data-bs-parent="#levelsAccordion">
+                <div class="accordion-body">
+                  {% if l.locked_initial %}
+                    <div class="alert alert-light border mb-0">
+                      {% if l.missing_config %}
+                        Este nivel no tiene comportamientos configurados. Contacta con HR/Admin.
+                      {% else %}
+                        Completa el nivel anterior para desbloquear este nivel.
+                      {% endif %}
+                    </div>
+                  {% else %}
+                    {% if not is_self_eval and not self_eval_completed %}
+                    <div class="alert alert-warning py-2">
+                      Empleado sin autoevaluar.
+                    </div>
+                    {% endif %}
+                    <div class="vstack gap-2">
+                      {% for ind in l.indicators %}
+                        {% with current=rating_map|get:ind.id|default:1 %}
+                        <div class="d-flex flex-column flex-md-row justify-content-between gap-2 py-2 border-bottom">
+                          <div class="me-3">{{ ind.text }}</div>
+                          {% if not is_self_eval %}
+                            <div class="text-muted small">
+                              Auto:
+                              {% if self_eval_completed %}
+                                {% with self_val=self_rating_map|get:ind.id %}{% if self_val %}{{ self_val|rating_label }}{% else %}Nunca{% endif %}{% endwith %}
+                              {% else %}
+                                Sin autoevaluar
+                              {% endif %}
+                            </div>
+                          {% endif %}
+
+                          <div class="btn-group btn-group-sm" role="group" aria-label="rating">
+                            <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
+                                   id="ind_{{ ind.id }}_1" value="1" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
+                                   {% if current == 1 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
+                            <label class="btn btn-outline-danger" for="ind_{{ ind.id }}_1">Nunca</label>
+
+                            <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
+                                   id="ind_{{ ind.id }}_2" value="2" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
+                                   {% if current == 2 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
+                            <label class="btn btn-outline-warning" for="ind_{{ ind.id }}_2">Casi nunca</label>
+
+                            <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
+                                   id="ind_{{ ind.id }}_3" value="3" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
+                                   {% if current == 3 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
+                            <label class="btn btn-outline-info" for="ind_{{ ind.id }}_3">Casi siempre</label>
+
+                            <input class="btn-check js-rating" type="radio" name="ind_{{ ind.id }}"
+                                   id="ind_{{ ind.id }}_4" value="4" data-ind="{{ ind.id }}" data-level="{{ lvl }}"
+                                   {% if current == 4 %}checked{% endif %} {% if cycle_locked %}disabled{% endif %}>
+                            <label class="btn btn-outline-success" for="ind_{{ ind.id }}_4">Siempre</label>
+                          </div>
+                        </div>
+                        {% endwith %}
+                      {% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
-              {% endif %}
+              </div>
             </div>
-          </div>
+            {% endwith %}
+          {% endfor %}
         </div>
-        {% endwith %}
-      {% endfor %}
+      </div>
+
+      <div class="tm-qual-nav tm-qual-nav--right">
+        {% if next_competency_id %}
+          <a class="btn btn-outline-secondary js-nav-link" data-target-url="{% url 'edit_qualitative_competency' employee_id=employee.id competency_id=next_competency_id %}" href="{% url 'edit_qualitative_competency' employee_id=employee.id competency_id=next_competency_id %}" aria-label="Siguiente competencia">
+            <i class="bi bi-chevron-right"></i>
+          </a>
+        {% endif %}
+      </div>
     </div>
 
     <div class="d-flex gap-2 mt-3">
@@ -150,7 +180,43 @@
 <script>
   const form = document.getElementById("qual-form");
   const passRating = parseInt(form.dataset.passRating, 10);
+  const level3PassRating = parseInt(form.dataset.level3PassRating, 10);
   const requiredLevel = parseInt(form.dataset.requiredLevel, 10);
+  const passRatingForLevel = (lvl) => (lvl === 3 ? level3PassRating : passRating);
+  const statusEl = document.getElementById("autosave-status");
+  const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+  const debounceMs = 1000;
+  const requestTimeoutMs = 15000;
+  let dirty = false;
+  let debounceTimer = null;
+  let savePromise = null;
+  let hasQueuedSave = false;
+  let pendingNavigationUrl = null;
+  let isSubmitInProgress = false;
+
+  function setStatus(type, msg) {
+    if (!statusEl) return;
+    statusEl.className = "badge";
+    if (type === "dirty") statusEl.classList.add("text-bg-warning", "text-dark");
+    if (type === "saving") statusEl.classList.add("text-bg-info", "text-dark");
+    if (type === "saved") statusEl.classList.add("text-bg-success");
+    if (type === "error") statusEl.classList.add("text-bg-danger");
+    statusEl.textContent = msg;
+  }
+
+  function snapshotFormState() {
+    const pairs = Array.from(form.querySelectorAll("input.js-rating:checked"))
+      .map((inp) => [inp.name, inp.value])
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    return JSON.stringify(pairs);
+  }
+
+  let lastSavedSnapshot = snapshotFormState();
+
+  function refreshDirtyState() {
+    dirty = snapshotFormState() !== lastSavedSnapshot;
+    if (dirty) setStatus("dirty", "Cambios sin guardar");
+  }
 
   function getSelectedValue(levelEl, indId) {
     const checked = levelEl.querySelector(`input[name="ind_${indId}"]:checked`);
@@ -182,6 +248,93 @@
     }
   }
 
+  async function doAutosave() {
+    setStatus("saving", "Guardando…");
+    const payload = new URLSearchParams(new FormData(form));
+    payload.set("_autosave", "1");
+    const outgoingSnapshot = snapshotFormState();
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), requestTimeoutMs);
+    let resp;
+    try {
+      resp = await fetch(window.location.href, {
+        method: "POST",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": csrfToken,
+          "Accept": "application/json",
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+        body: payload.toString(),
+        credentials: "same-origin",
+        signal: controller.signal,
+      });
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || "No se pudo guardar.");
+    }
+
+    if (outgoingSnapshot === snapshotFormState()) {
+      lastSavedSnapshot = outgoingSnapshot;
+      dirty = false;
+      setStatus("saved", "Guardado");
+    }
+    return true;
+  }
+
+  async function flushAutosave() {
+    if (!dirty && !savePromise) return true;
+    if (savePromise) {
+      hasQueuedSave = true;
+      return savePromise;
+    }
+
+    savePromise = (async () => {
+      try {
+        await doAutosave();
+      } catch (err) {
+        setStatus("error", "Error al guardar");
+        return false;
+      } finally {
+        savePromise = null;
+      }
+
+      if (hasQueuedSave) {
+        hasQueuedSave = false;
+        refreshDirtyState();
+        if (dirty) return flushAutosave();
+      }
+      return true;
+    })();
+
+    return savePromise;
+  }
+
+  function scheduleAutosave() {
+    if (debounceTimer) window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => {
+      flushAutosave();
+    }, debounceMs);
+  }
+
+  async function navigateWithAutosave(url) {
+    if (!url) return;
+    if (debounceTimer) {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    pendingNavigationUrl = url;
+    const ok = await flushAutosave();
+    if (ok && pendingNavigationUrl === url) {
+      window.location.href = url;
+      return;
+    }
+    pendingNavigationUrl = null;
+  }
+
   function recompute() {
     const levelEls = Array.from(document.querySelectorAll(".js-level"))
       .sort((a, b) => parseInt(a.dataset.level, 10) - parseInt(b.dataset.level, 10));
@@ -203,7 +356,7 @@
 
       for (const indId of indIds) {
         const v = getSelectedValue(lvlEl, indId);
-        if (v >= passRating) passed++;
+        if (v >= passRatingForLevel(lvl)) passed++;
       }
 
       const prog = lvlEl.querySelector(`.js-progress[data-level="${lvl}"]`);
@@ -270,11 +423,50 @@
 
   // eventos
   document.querySelectorAll("input.js-rating").forEach(inp => {
-    inp.addEventListener("change", recompute);
+    inp.addEventListener("change", () => {
+      recompute();
+      refreshDirtyState();
+      scheduleAutosave();
+    });
+  });
+
+  document.querySelectorAll(".js-nav-link").forEach((link) => {
+    link.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const targetUrl = link.dataset.targetUrl;
+      if (!targetUrl) return;
+      if (!dirty && !savePromise) {
+        window.location.href = targetUrl;
+        return;
+      }
+      await navigateWithAutosave(targetUrl);
+    });
+  });
+
+  form.addEventListener("submit", async (ev) => {
+    if (isSubmitInProgress) return;
+    if (!dirty && !savePromise && !debounceTimer) return;
+
+    ev.preventDefault();
+    if (debounceTimer) {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    const ok = await flushAutosave();
+    if (!ok) return;
+    isSubmitInProgress = true;
+    form.submit();
+  });
+
+  window.addEventListener("beforeunload", (ev) => {
+    if (!dirty && !savePromise) return;
+    ev.preventDefault();
+    ev.returnValue = "";
   });
 
   // init
   recompute();
+  setStatus("saved", "Guardado");
 </script>
 {% endblock %}
 {% endif %}

@@ -86,7 +86,7 @@ class SelfAssessmentTests(TestCase):
         self.assertContains(qual_resp, "Auto:")
         self.assertContains(qual_resp, "Siempre")
 
-    def test_manager_cannot_view_self_assessment_without_official_evaluation(self):
+    def test_manager_can_view_self_assessment_without_official_evaluation(self):
         QualitativeIndicatorSelfAssessment.objects.create(
             employee=self.report,
             cycle=self.cycle,
@@ -95,4 +95,9 @@ class SelfAssessmentTests(TestCase):
         )
         self.client.login(username="manager", password="pass")
         qual_resp = self.client.get(reverse("edit_qualitative_competency", args=[self.report.id, self.comp.id]))
-        self.assertContains(qual_resp, "Sin autoevaluación")
+        self.assertContains(qual_resp, "Siempre")
+
+    def test_manager_sees_employee_without_self_assessment_as_sin_autoevaluar(self):
+        self.client.login(username="manager", password="pass")
+        qual_resp = self.client.get(reverse("edit_qualitative_competency", args=[self.report.id, self.comp.id]))
+        self.assertContains(qual_resp, "sin autoevaluar", status_code=200)

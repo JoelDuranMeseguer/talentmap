@@ -2,6 +2,7 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -81,6 +82,10 @@ def _recompute_company(cycle: EvaluationCycle):
     # Para que el 9-box (admin) esté siempre consistente,
     # recalculamos para todos los empleados activos.
     recompute_cycle_scores(cycle, Employee.objects.filter(active=True))
+
+
+def _recompute_employee(cycle: EvaluationCycle, employee: Employee):
+    recompute_cycle_scores(cycle, Employee.objects.filter(id=employee.id))
 
 
 def _cycle_or_admin_redirect(request):
@@ -376,6 +381,53 @@ def _qual_progress(levels, rating_map, required_level):
     return achieved, unlocked, missing_level
 
 
+def _persist_qualitative_ratings(request, emp, cycle, levels, model_cls, is_self_eval, required_level, rating_map, unlocked_max_level):
+    post_rating_map = dict(rating_map)
+    dynamic_unlocked_max = unlocked_max_level
+
+    with transaction.atomic():
+        for lvl in levels:
+            # Enforce server-side locking: no aceptar niveles bloqueados.
+            if lvl.level > dynamic_unlocked_max:
+                continue
+
+            inds = list(lvl.indicators.all())
+            for ind in inds:
+                raw = request.POST.get(f"ind_{ind.id}")
+                try:
+                    rating = int(raw) if raw else 1
+                except ValueError:
+                    rating = 1
+                rating = max(1, min(4, rating))
+
+                model_cls.objects.update_or_create(
+                    employee=emp,
+                    cycle=cycle,
+                    indicator=ind,
+                    defaults={"rating": rating, **({} if is_self_eval else {"assessed_by": request.user})},
+                )
+                post_rating_map[ind.id] = rating
+
+            # Recalcula desbloqueo dentro del mismo submit para no obligar a guardar entre niveles.
+            if inds:
+                passed = sum(
+                    1 for ind in inds if post_rating_map.get(ind.id, 1) >= pass_rating_for_level(lvl.level)
+                )
+                if passed == len(inds):
+                    dynamic_unlocked_max = min(lvl.level + 1, required_level)
+                else:
+                    dynamic_unlocked_max = lvl.level
+                    break
+
+    achieved_level, current_level, missing_level = _qual_progress(levels, post_rating_map, required_level)
+    return {
+        "rating_map": post_rating_map,
+        "achieved_level": achieved_level,
+        "current_level": current_level,
+        "missing_level": missing_level,
+    }
+
+
 @login_required
 def edit_qualitative(request, employee_id, competency_id):
     """ CUALITATIVO = competencias→niveles→comportamientos con escala Nunca/Casi nunca/Casi siempre/Siempre. """
@@ -437,50 +489,50 @@ def edit_qualitative(request, employee_id, competency_id):
     current_level = unlocked_max_level
 
     if request.method == "POST":
+        wants_json = (
+            request.headers.get("x-requested-with") == "XMLHttpRequest"
+            or "application/json" in request.headers.get("Accept", "")
+            or request.POST.get("_autosave") == "1"
+        )
+
         if cycle_locked:
+            if wants_json:
+                return JsonResponse({"ok": False, "error": "Este ciclo está cerrado. Solo se permite consulta."}, status=423)
             messages.error(request, "Este ciclo está cerrado. Solo se permite consulta.")
             return redirect("edit_qualitative_competency", employee_id=employee_id, competency_id=competency_id)
 
-        with transaction.atomic():
-            post_rating_map = dict(rating_map)
-            dynamic_unlocked_max = unlocked_max_level
-            for lvl in levels:
-                # Enforce server-side locking: no aceptar niveles bloqueados.
-                if lvl.level > dynamic_unlocked_max:
-                    continue
-
-                inds = list(lvl.indicators.all())
-                for ind in lvl.indicators.all():
-                    raw = request.POST.get(f"ind_{ind.id}")
-                    try:
-                        rating = int(raw) if raw else 1
-                    except ValueError:
-                        rating = 1
-                    rating = max(1, min(4, rating))
-
-                    model_cls.objects.update_or_create(
-                        employee=emp,
-                        cycle=cycle,
-                        indicator=ind,
-                        defaults={"rating": rating, **({} if is_self_eval else {"assessed_by": request.user})},
-                    )
-                    post_rating_map[ind.id] = rating
-
-                # Recalcula desbloqueo dentro del mismo submit para no obligar a guardar entre niveles.
-                if inds:
-                    passed = sum(
-                        1 for ind in inds if post_rating_map.get(ind.id, 1) >= pass_rating_for_level(lvl.level)
-                    )
-                    if passed == len(inds):
-                        dynamic_unlocked_max = min(lvl.level + 1, required_level)
-                    else:
-                        dynamic_unlocked_max = lvl.level
-                        break
+        save_result = _persist_qualitative_ratings(
+            request=request,
+            emp=emp,
+            cycle=cycle,
+            levels=levels,
+            model_cls=model_cls,
+            is_self_eval=is_self_eval,
+            required_level=required_level,
+            rating_map=rating_map,
+            unlocked_max_level=unlocked_max_level,
+        )
 
         if is_self_eval:
+            if wants_json:
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "achieved_level": save_result["achieved_level"],
+                        "current_level": save_result["current_level"],
+                    }
+                )
             messages.success(request, "Autoevaluación cualitativa guardada.")
         else:
-            _recompute_company(cycle)
+            _recompute_employee(cycle, emp)
+            if wants_json:
+                return JsonResponse(
+                    {
+                        "ok": True,
+                        "achieved_level": save_result["achieved_level"],
+                        "current_level": save_result["current_level"],
+                    }
+                )
             messages.success(request, "Cualitativo guardado.")
         return redirect("edit_qualitative_competency", employee_id=emp.id, competency_id=comp.id)
 

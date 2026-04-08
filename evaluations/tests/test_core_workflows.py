@@ -100,3 +100,22 @@ class CoreWorkflowTests(TestCase):
         self.assertContains(resp, "Básico")
         self.assertContains(resp, "Autoevaluación:")
         self.assertNotContains(resp, "Requerido: nivel 2")
+
+    def test_edit_qualitative_autosave_returns_json(self):
+        comp = Competency.objects.create(name="Calidad")
+        l1 = CompetencyLevel.objects.create(competency=comp, level=1, title="L1")
+        i1 = LevelIndicator.objects.create(level=l1, text="i1")
+        RoleCompetencyRequirement.objects.create(role=self.role, competency=comp, required_level=1, weight=Decimal("1"))
+
+        self.client.login(username="manager", password="pass")
+        resp = self.client.post(
+            reverse("edit_qualitative_competency", args=[self.report.id, comp.id]),
+            {f"ind_{i1.id}": "4", "_autosave": "1"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertJSONEqual(resp.content, {"ok": True, "achieved_level": 1, "current_level": 1})
+        saved = QualitativeIndicatorAssessment.objects.get(employee=self.report, cycle=self.cycle, indicator=i1)
+        self.assertEqual(int(saved.rating), 4)

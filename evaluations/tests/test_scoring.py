@@ -15,7 +15,12 @@ from evaluations.models import (
     QualitativeAxisMethod,
 )
 from competencies.models import Competency, CompetencyLevel, LevelIndicator, RoleCompetencyRequirement
-from evaluations.services.scoring import compute_quantitative_score, compute_qualitative_score, recompute_cycle_scores
+from evaluations.services.scoring import (
+    competency_qualitative_label,
+    compute_quantitative_score,
+    compute_qualitative_score,
+    recompute_cycle_scores,
+)
 
 
 class ScoringTests(TestCase):
@@ -153,3 +158,32 @@ class ScoringTests(TestCase):
         self.assertEqual(EmployeeCycleScore.objects.get(employee=e1, cycle=self.cycle).qual_tercile, 1)
         self.assertEqual(EmployeeCycleScore.objects.get(employee=e2, cycle=self.cycle).qual_tercile, 3)
         self.assertEqual(EmployeeCycleScore.objects.get(employee=e3, cycle=self.cycle).qual_tercile, 3)
+
+    def test_level_3_requires_siempre(self):
+        comp = Competency.objects.create(name="Pensamiento", description="")
+        l1 = CompetencyLevel.objects.create(competency=comp, level=1, title="L1")
+        l2 = CompetencyLevel.objects.create(competency=comp, level=2, title="L2")
+        l3 = CompetencyLevel.objects.create(competency=comp, level=3, title="L3")
+        i1 = LevelIndicator.objects.create(level=l1, text="i1")
+        i2 = LevelIndicator.objects.create(level=l2, text="i2")
+        i3 = LevelIndicator.objects.create(level=l3, text="i3")
+        RoleCompetencyRequirement.objects.create(role=self.role, competency=comp, required_level=3, weight=Decimal("1"))
+
+        QualitativeIndicatorAssessment.objects.create(employee=self.emp, cycle=self.cycle, indicator=i1, rating=4, assessed_by=self.mgr_user)
+        QualitativeIndicatorAssessment.objects.create(employee=self.emp, cycle=self.cycle, indicator=i2, rating=4, assessed_by=self.mgr_user)
+        QualitativeIndicatorAssessment.objects.create(employee=self.emp, cycle=self.cycle, indicator=i3, rating=3, assessed_by=self.mgr_user)
+        score = compute_qualitative_score(self.emp, self.cycle)
+        self.assertEqual(score.quantize(Decimal("0.01")), Decimal("66.67"))
+
+        a = QualitativeIndicatorAssessment.objects.get(employee=self.emp, cycle=self.cycle, indicator=i3)
+        a.rating = 4
+        a.save()
+        score2 = compute_qualitative_score(self.emp, self.cycle)
+        self.assertEqual(score2.quantize(Decimal("0.01")), Decimal("100.00"))
+
+    def test_competency_labels(self):
+        self.assertEqual(competency_qualitative_label(0, 0, False), "Elemental")
+        self.assertEqual(competency_qualitative_label(1, 0, False), "Básico")
+        self.assertEqual(competency_qualitative_label(2, 0, False), "Avanzado")
+        self.assertEqual(competency_qualitative_label(2, 1, False), "Avanzado experto")
+        self.assertEqual(competency_qualitative_label(3, 2, True), "Experto")

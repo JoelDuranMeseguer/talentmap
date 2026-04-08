@@ -26,7 +26,11 @@
            href="{% url 'edit_qualitative_competency' employee_id=employee.id competency_id=row.req.competency.id %}">
           <div>
             <div class="fw-semibold">{{ row.req.competency.name }}</div>
-            <div class="text-muted small">Actual: nivel {{ row.achieved_level }} · Requerido: nivel {{ row.req.required_level }}</div>
+            <div class="text-muted small">
+              Actual: nivel {{ row.achieved_level }}
+              {% if can_view_required_level %}· Requerido: nivel {{ row.req.required_level }}{% endif %}
+              · Clasificación: {{ row.classification }}
+            </div>
           </div>
           <span class="badge text-bg-light text-dark border">Abrir</span>
         </a>

@@ -11,7 +11,26 @@ from evaluations.models import (
 )
 
 # Para subir de nivel, el comportamiento debe estar en Casi siempre (3) o Siempre (4)
+# excepto en nivel 3, que exige Siempre (4).
 PASS_RATING = 3
+
+
+def pass_rating_for_level(level: int) -> int:
+    if int(level) == 3:
+        return 4
+    return PASS_RATING
+
+
+def competency_qualitative_label(achieved_level: int, level3_always_count: int, passed_level_3: bool) -> str:
+    if achieved_level < 1:
+        return "Elemental"
+    if achieved_level < 2:
+        return "Básico"
+    if passed_level_3:
+        return "Experto"
+    if level3_always_count > 0:
+        return "Avanzado experto"
+    return "Avanzado"
 
 BOXES = {
     (3, 3): ("STAR", "Estrellas"),
@@ -56,7 +75,7 @@ def _achieved_level_for_competency(employee, cycle, competency: Competency) -> i
             employee=employee,
             cycle=cycle,
             indicator__in=inds,
-            rating__gte=PASS_RATING,
+            rating__gte=pass_rating_for_level(lvl.level),
         ).count()
 
         if ok == len(inds):

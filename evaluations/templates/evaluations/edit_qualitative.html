@@ -12,7 +12,19 @@
         {% if can_view_required_level %}· Requerido hasta nivel {{ required_level }}{% endif %}
       </div>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Volver</a>
+    <div class="d-flex gap-2">
+      {% if prev_competency_id %}
+        <a class="btn btn-outline-secondary" href="{% url 'edit_qualitative_competency' employee_id=employee.id competency_id=prev_competency_id %}">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+      {% endif %}
+      {% if next_competency_id %}
+        <a class="btn btn-outline-secondary" href="{% url 'edit_qualitative_competency' employee_id=employee.id competency_id=next_competency_id %}">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      {% endif %}
+      <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Volver</a>
+    </div>
   </div>
   {% if is_self_eval %}
     <div class="alert alert-info">Tu autoevaluación es informativa y no modifica el score oficial.</div>
@@ -28,12 +40,6 @@
       <span class="text-muted small">
         Para subir: todos los comportamientos del nivel anterior en <strong>Casi siempre</strong> o <strong>Siempre</strong>.
       </span>
-    </div>
-    <div class="mt-3 d-flex flex-wrap gap-2">
-      <span class="badge text-bg-danger">Nunca</span>
-      <span class="badge text-bg-warning text-dark">Casi nunca</span>
-      <span class="badge text-bg-info text-dark">Casi siempre</span>
-      <span class="badge text-bg-success">Siempre</span>
     </div>
   </div>
 
@@ -151,6 +157,11 @@
 
     <div class="d-flex gap-2 mt-3">
       {% if not cycle_locked %}<button class="btn btn-primary" type="submit">Guardar</button>{% endif %}
+      {% if next_competency_id %}
+        <a class="btn btn-outline-primary" href="{% url 'edit_qualitative_competency' employee_id=employee.id competency_id=next_competency_id %}">
+          Siguiente competencia <i class="bi bi-chevron-right"></i>
+        </a>
+      {% endif %}
       <a class="btn btn-outline-secondary" href="{% url 'competency_picker' employee_id=employee.id %}">Cancelar</a>
     </div>
   </form>

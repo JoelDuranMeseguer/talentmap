@@ -78,7 +78,7 @@ class CoreWorkflowTests(TestCase):
         self.assertIn((score.qual_tercile, score.quant_tercile), BOXES)
         self.assertTrue(score.box_code)
 
-    def test_competency_picker_shows_actual_and_required_levels(self):
+    def test_competency_picker_shows_classification_and_hides_required_for_manager(self):
         comp = Competency.objects.create(name="Ownership")
         l1 = CompetencyLevel.objects.create(competency=comp, level=1, title="L1")
         l2 = CompetencyLevel.objects.create(competency=comp, level=2, title="L2")
@@ -97,5 +97,6 @@ class CoreWorkflowTests(TestCase):
         self.client.login(username="manager", password="pass")
         resp = self.client.get(reverse("competency_picker", args=[self.report.id]))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Actual: nivel 1")
-        self.assertContains(resp, "Requerido: nivel 2")
+        self.assertContains(resp, "Básico")
+        self.assertContains(resp, "Autoevaluación:")
+        self.assertNotContains(resp, "Requerido: nivel 2")

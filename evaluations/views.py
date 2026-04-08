@@ -139,6 +139,36 @@ def _classify_competency(levels, rating_map, required_level):
     return competency_qualitative_label(achieved, always_count, passed_level3)
 
 
+def _self_assessment_status(employee, cycle):
+    reqs = (
+        RoleCompetencyRequirement.objects.filter(role=employee.role)
+        .select_related("competency")
+        .order_by("competency__name")
+    )
+    all_indicator_ids = []
+    for req in reqs:
+        levels = (
+            CompetencyLevel.objects.filter(competency=req.competency, level__lte=req.required_level)
+            .prefetch_related("indicators")
+            .order_by("level")
+        )
+        all_indicator_ids.extend([ind.id for lvl in levels for ind in lvl.indicators.all()])
+
+    if not all_indicator_ids:
+        return {"has_data": False, "done": 0, "total": 0, "completed": False}
+
+    ratings = QualitativeIndicatorSelfAssessment.objects.filter(
+        employee=employee,
+        cycle=cycle,
+        indicator_id__in=all_indicator_ids,
+    )
+    self_map = {a.indicator_id: int(a.rating) for a in ratings}
+    done = sum(1 for ind_id in all_indicator_ids if self_map.get(ind_id, 1) > 1)
+    total = len(all_indicator_ids)
+    completed = done > 0
+    return {"has_data": True, "done": done, "total": total, "completed": completed}
+
+
 @login_required
 def cycle_home(request):
     cycle, fallback = _cycle_or_admin_redirect(request)
@@ -158,6 +188,7 @@ def cycle_home(request):
 
     can_edit_me = hr or (me.manager_id and me.manager.user_id == request.user.id)
     can_self_evaluate = hasattr(request.user, "employee")
+    self_eval_status = _self_assessment_status(me, cycle)
 
     return render(
         request,
@@ -170,6 +201,7 @@ def cycle_home(request):
             "is_hr": hr,
             "can_edit_me": can_edit_me,
             "can_self_evaluate": can_self_evaluate,
+            "self_eval_status": self_eval_status,
             "cycle_locked": cycle_locked,
         },
     )
@@ -284,7 +316,21 @@ def competency_picker(request, employee_id):
         rating_map = {a.indicator_id: int(a.rating) for a in ratings}
         achieved_level, _, _ = _qual_progress(levels, rating_map, int(req.required_level))
         classification = _classify_competency(levels, rating_map, int(req.required_level))
-        req_rows.append({"req": req, "achieved_level": achieved_level, "classification": classification})
+        self_ratings = QualitativeIndicatorSelfAssessment.objects.filter(
+            employee=emp, cycle=cycle, indicator_id__in=indicator_ids
+        )
+        self_map = {a.indicator_id: int(a.rating) for a in self_ratings}
+        self_done = sum(1 for ind_id in indicator_ids if self_map.get(ind_id, 1) > 1)
+        req_rows.append(
+            {
+                "req": req,
+                "achieved_level": achieved_level,
+                "classification": classification,
+                "self_done": self_done,
+                "self_total": len(indicator_ids),
+                "self_completed": self_done > 0,
+            }
+        )
 
     return render(
         request,
@@ -353,6 +399,20 @@ def edit_qualitative(request, employee_id, competency_id):
         CompetencyLevel.objects.filter(competency=comp, level__lte=required_level)
         .prefetch_related("indicators")
         .order_by("level")
+    )
+    ordered_competency_ids = list(
+        RoleCompetencyRequirement.objects.filter(role=emp.role)
+        .select_related("competency")
+        .order_by("competency__name")
+        .values_list("competency_id", flat=True)
+    )
+    try:
+        idx = ordered_competency_ids.index(comp.id)
+    except ValueError:
+        idx = -1
+    prev_competency_id = ordered_competency_ids[idx - 1] if idx > 0 else None
+    next_competency_id = (
+        ordered_competency_ids[idx + 1] if idx >= 0 and idx < len(ordered_competency_ids) - 1 else None
     )
 
     indicator_ids = []
@@ -461,6 +521,8 @@ def edit_qualitative(request, employee_id, competency_id):
             "self_rating_map": self_rating_map,
             "self_eval_completed": self_eval_completed,
             "can_view_required_level": is_hr(request.user),
+            "prev_competency_id": prev_competency_id,
+            "next_competency_id": next_competency_id,
             "cycle_locked": cycle_locked,
         },
     )
